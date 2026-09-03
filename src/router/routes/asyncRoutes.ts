@@ -1,9 +1,7 @@
-// 权限文档：https://www.artd.pro/docs/zh/guide/in-depth/permission.html
-import { AppRouteRecord } from '@/types/router'
-import { routeModules } from '../modules'
+import type { AppRouteRecord } from '@/types/router'
 
 /**
- * 动态路由（需要权限才能访问的路由）
- * 用于渲染菜单以及根据菜单权限动态加载路由，如果没有权限无法访问
+ * 业务菜单已迁移到数据库，由 /menus/navigation 按当前用户权限返回。
+ * 此处仅保留空集合以兼容路由处理器的前端模式类型。
  */
-export const asyncRoutes: AppRouteRecord[] = routeModules
+export const asyncRoutes: AppRouteRecord[] = []

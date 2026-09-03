@@ -93,17 +93,14 @@ declare namespace Api {
     /** 用户列表项 */
     interface UserListItem {
       id: number
-      avatar: string
-      status: string
       userName: string
       userGender: string
       nickName: string
       userPhone: string
       userEmail: string
+      status: string
       userRoles: string[]
-      createBy: string
       createTime: string
-      updateBy: string
       updateTime: string
     }
 
@@ -118,21 +115,47 @@ declare namespace Api {
 
     /** 角色列表项 */
     interface RoleListItem {
+      index: number
       roleId: number
       roleName: string
       roleCode: string
       description: string
       enabled: boolean
       createTime: string
+      updateTime: string
     }
 
     /** 角色搜索参数 */
     type RoleSearchParams = Partial<
-      Pick<RoleListItem, 'roleId' | 'roleName' | 'roleCode' | 'description' | 'enabled'> &
+      Pick<RoleListItem, 'roleName' | 'roleCode' | 'description' | 'enabled'> &
         Api.Common.CommonSearchParams & {
           startTime: string | null
           endTime: string | null
         }
+    >
+
+    /** 菜单列表 */
+    type MenuList = Api.Common.PaginatedResponse<MenuListItem>
+
+    /** 菜单列表项 */
+    interface MenuListItem {
+      index: number
+      menuId: number
+      parentId: number | null
+      menuName: string
+      menuType: 'directory' | 'menu' | 'button'
+      icon: string
+      route: string
+      permissionCode: string
+      sort: number
+      enabled: boolean
+      createTime: string
+      updateTime: string
+    }
+
+    /** 菜单搜索参数 */
+    type MenuSearchParams = Partial<
+      Pick<MenuListItem, 'menuName' | 'route'> & Api.Common.CommonSearchParams
     >
   }
 }

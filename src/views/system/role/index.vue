@@ -55,6 +55,7 @@
   import { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
   import { useTable } from '@/hooks/core/useTable'
   import { fetchGetRoleList } from '@/api/system-manage'
+  import { formatDateTime } from '@/utils/date'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
   import RoleSearch from './modules/role-search.vue'
   import RoleEditDialog from './modules/role-edit-dialog.vue'
@@ -107,8 +108,8 @@
       excludeParams: ['daterange'],
       columnsFactory: () => [
         {
-          prop: 'roleId',
-          label: '角色ID',
+          prop: 'index',
+          label: '序号',
           width: 100
         },
         {
@@ -146,7 +147,15 @@
           prop: 'createTime',
           label: '创建日期',
           width: 180,
-          sortable: true
+          sortable: true,
+          formatter: (row: RoleListItem) => formatDateTime(row.createTime)
+        },
+        {
+          prop: 'updateTime',
+          label: '更新日期',
+          width: 180,
+          sortable: true,
+          formatter: (row: RoleListItem) => formatDateTime(row.updateTime)
         },
         {
           prop: 'operation',

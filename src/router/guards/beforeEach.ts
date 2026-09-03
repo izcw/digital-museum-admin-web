@@ -342,10 +342,10 @@ async function handleDynamicRoutes(
     // 关闭 loading
     closeLoading()
 
-    // 401 错误：axios 拦截器已处理退出登录，取消当前导航
+    // 会话失效时清除本地登录状态并返回登录页。
     if (isUnauthorizedError(error)) {
-      // 重置状态，允许重新登录后再次初始化
       routeInitInProgress = false
+      useUserStore().logOut()
       next(false)
       return
     }

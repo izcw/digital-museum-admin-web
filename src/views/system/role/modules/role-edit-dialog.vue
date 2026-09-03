@@ -85,11 +85,13 @@
    * 表单数据
    */
   const form = reactive<RoleListItem>({
+    index: 0,
     roleId: 0,
     roleName: '',
     roleCode: '',
     description: '',
     createTime: '',
+    updateTime: '',
     enabled: true
   })
 
@@ -123,11 +125,13 @@
       Object.assign(form, props.roleData)
     } else {
       Object.assign(form, {
+        index: 0,
         roleId: 0,
         roleName: '',
         roleCode: '',
         description: '',
         createTime: '',
+        updateTime: '',
         enabled: true
       })
     }

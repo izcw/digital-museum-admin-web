@@ -177,19 +177,13 @@
     try {
       switching.value = true
 
-      // 模拟登录请求
-      const { token, refreshToken } = await fetchLogin({
+      // api-server 使用 HttpOnly Cookie 维护登录会话
+      await fetchLogin({
         userName: account.userName,
         password: account.password
       })
 
-      // 验证token
-      if (!token) {
-        throw new Error('Login failed - no token received')
-      }
-
-      // 存储token和用户信息
-      userStore.setToken(token, refreshToken)
+      // 存储用户信息
       const userInfo = await fetchGetUserInfo()
       userStore.setUserInfo(userInfo)
 

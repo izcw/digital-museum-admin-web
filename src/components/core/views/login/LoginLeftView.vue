@@ -97,11 +97,12 @@
   .login-left-view {
     position: relative;
     box-sizing: border-box;
-    width: 65vw;
+    width: 30vw;
     height: 100%;
     padding: 15px;
     overflow: hidden;
-    background-color: $bg-mix-light-9;
+    // background-color: $bg-mix-light-9;
+    background: linear-gradient(163.85deg, #1d2129, #00308f);
 
     .logo {
       position: relative;
