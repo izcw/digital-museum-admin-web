@@ -7,7 +7,8 @@
     </div>
 
     <div class="left-img">
-      <ThemeSvg :src="loginIcon" size="100%" />
+      <!-- <ThemeSvg :src="loginIcon" size="100%" /> -->
+      <img :src="loginIcon" alt="数字博物馆学习插画" class="w-full h-full object-contain" />
     </div>
 
     <div class="text-wrap">
@@ -18,7 +19,7 @@
     <!-- 几何装饰元素 -->
     <div class="geometric-decorations">
       <!-- 基础几何形状 -->
-      <div class="geo-element circle-outline animate-fade-in-up" style="animation-delay: 0s"></div>
+      <!-- <div class="geo-element circle-outline animate-fade-in-up" style="animation-delay: 0s"></div>
       <div
         class="geo-element square-rotated animate-fade-in-left"
         style="animation-delay: 0s"
@@ -28,31 +29,31 @@
       <div
         class="geo-element square-bottom-right animate-fade-in-right"
         style="animation-delay: 0s"
-      ></div>
+      ></div> -->
 
       <!-- 背景泡泡 -->
-      <div class="geo-element bg-bubble animate-scale-in" style="animation-delay: 0.5"></div>
+      <!-- <div class="geo-element bg-bubble animate-scale-in" style="animation-delay: 0.5"></div> -->
 
       <!-- 太阳/月亮 -->
-      <div
+      <!-- <div
         class="geo-element circle-top-right animate-fade-in-down"
         style="animation-delay: 0.5"
         @click="themeAnimation"
-      ></div>
+      ></div> -->
 
       <!-- 装饰点 -->
-      <div class="geo-element dot dot-top-left animate-bounce-in" style="animation-delay: 0s"></div>
+      <!-- <div class="geo-element dot dot-top-left animate-bounce-in" style="animation-delay: 0s"></div>
       <div
         class="geo-element dot dot-top-right animate-bounce-in"
         style="animation-delay: 0s"
-      ></div>
-      <div
+      ></div> -->
+      <!-- <div
         class="geo-element dot dot-center-right animate-bounce-in"
         style="animation-delay: 0s"
-      ></div>
+      ></div> -->
 
       <!-- 叠加方块组 -->
-      <div class="squares-group">
+      <!-- <div class="squares-group">
         <i
           class="geo-element square square-blue animate-fade-in-left-rotated-blue"
           style="animation-delay: 0.2s"
@@ -65,15 +66,15 @@
           class="geo-element square square-purple animate-fade-in-left-no-rotation"
           style="animation-delay: 0.6s"
         ></i>
-      </div>
+      </div> -->
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
   import AppConfig from '@/config'
-  import loginIcon from '@imgs/svg/login_icon.svg'
-  import { themeAnimation } from '@/utils/ui/animation'
+  // import loginIcon from '@imgs/login/museum-learning-icon.png'
+  import loginIcon from '@imgs/common/logo-txt.png'
 
   // 定义 props
   defineProps<{
@@ -102,7 +103,7 @@
     padding: 15px;
     overflow: hidden;
     // background-color: $bg-mix-light-9;
-    background: linear-gradient(163.85deg, #1d2129, #00308f);
+    background: linear-gradient(163.85deg, #000, #2f2114);
 
     .logo {
       position: relative;
@@ -114,6 +115,7 @@
         margin-left: 10px;
         font-size: 20px;
         font-weight: 400;
+        color: var(--art-gray-100) !important;
       }
     }
 
@@ -121,9 +123,17 @@
       position: absolute;
       inset: 0 0 10.5%;
       z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       width: 40%;
       margin: auto;
       animation: slideInLeft 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+
+      img {
+        width: auto;
+        height: 100px;
+      }
     }
 
     .text-wrap {
@@ -136,13 +146,13 @@
       h1 {
         font-size: 24px;
         font-weight: 400;
-        color: var(--art-gray-900) !important;
+        color: var(--art-gray-100) !important;
       }
 
       p {
         margin-top: 10px;
         font-size: 14px;
-        color: var(--art-gray-600) !important;
+        color: var(--art-gray-300) !important;
       }
     }
 
