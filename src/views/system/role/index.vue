@@ -6,7 +6,7 @@
       v-model="searchForm"
       @search="handleSearch"
       @reset="resetSearchParams"
-    ></RoleSearch>
+    />
 
     <ElCard class="art-table-card" :style="{ 'margin-top': showSearchBar ? '12px' : '0' }">
       <ArtTableHeader
@@ -16,13 +16,10 @@
         @refresh="refreshData"
       >
         <template #left>
-          <ElSpace wrap>
-            <ElButton @click="showDialog('add')" v-ripple>新增角色</ElButton>
-          </ElSpace>
+          <ElButton v-ripple @click="showDialog('add')">新增角色</ElButton>
         </template>
       </ArtTableHeader>
 
-      <!-- 表格 -->
       <ArtTable
         :loading="loading"
         :data="data"
@@ -30,11 +27,9 @@
         :pagination="pagination"
         @pagination:size-change="handleSizeChange"
         @pagination:current-change="handleCurrentChange"
-      >
-      </ArtTable>
+      />
     </ElCard>
 
-    <!-- 角色编辑弹窗 -->
     <RoleEditDialog
       v-model="dialogVisible"
       :dialog-type="dialogType"
@@ -42,7 +37,6 @@
       @success="refreshData"
     />
 
-    <!-- 菜单权限弹窗 -->
     <RolePermissionDialog
       v-model="permissionDialog"
       :role-data="currentRoleData"
@@ -52,24 +46,21 @@
 </template>
 
 <script setup lang="ts">
-  import { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
-  import { useTable } from '@/hooks/core/useTable'
-  import { fetchGetRoleList } from '@/api/system-manage'
-  import { formatDateTime } from '@/utils/date'
+  import { ElMessage, ElMessageBox, ElTag } from 'element-plus'
+  import type { ButtonMoreItem } from '@/components/core/forms/art-button-more/index.vue'
   import ArtButtonMore from '@/components/core/forms/art-button-more/index.vue'
-  import RoleSearch from './modules/role-search.vue'
+  import { fetchDeleteRole, fetchGetRoleList } from '@/api/system-manage'
+  import { useTable } from '@/hooks/core/useTable'
+  import { formatDateTime } from '@/utils/date'
   import RoleEditDialog from './modules/role-edit-dialog.vue'
   import RolePermissionDialog from './modules/role-permission-dialog.vue'
-  import { ElTag, ElMessageBox } from 'element-plus'
+  import RoleSearch from './modules/role-search.vue'
 
   defineOptions({ name: 'Role' })
 
   type RoleListItem = Api.SystemManage.RoleListItem
-  type RoleSearchFormParams = Api.SystemManage.RoleSearchParams & {
-    daterange?: string[]
-  }
+  type RoleSearchFormParams = Api.SystemManage.RoleSearchParams & { daterange?: string[] }
 
-  // 搜索表单
   const searchForm = ref<RoleSearchFormParams>({
     roleName: undefined,
     roleCode: undefined,
@@ -77,12 +68,11 @@
     enabled: undefined,
     daterange: undefined
   })
-
   const showSearchBar = ref(false)
-
   const dialogVisible = ref(false)
   const permissionDialog = ref(false)
-  const currentRoleData = ref<RoleListItem | undefined>(undefined)
+  const currentRoleData = ref<RoleListItem | undefined>()
+  const dialogType = ref<'add' | 'edit'>('add')
 
   const {
     columns,
@@ -95,33 +85,17 @@
     resetSearchParams,
     handleSizeChange,
     handleCurrentChange,
-    refreshData
+    refreshData,
+    refreshRemove
   } = useTable({
-    // 核心配置
     core: {
       apiFn: fetchGetRoleList,
-      apiParams: {
-        current: 1,
-        size: 20
-      },
-      // 排除 apiParams 中的属性
+      apiParams: { current: 1, size: 20 },
       excludeParams: ['daterange'],
       columnsFactory: () => [
-        {
-          prop: 'index',
-          label: '序号',
-          width: 100
-        },
-        {
-          prop: 'roleName',
-          label: '角色名称',
-          minWidth: 120
-        },
-        {
-          prop: 'roleCode',
-          label: '角色编码',
-          minWidth: 120
-        },
+        { prop: 'index', label: '序号', width: 100 },
+        { prop: 'roleName', label: '角色名称', minWidth: 120 },
+        { prop: 'roleCode', label: '角色编码', minWidth: 120 },
         {
           prop: 'description',
           label: '角色描述',
@@ -132,16 +106,10 @@
           prop: 'enabled',
           label: '角色状态',
           width: 100,
-          formatter: (row) => {
-            const statusConfig = row.enabled
-              ? { type: 'success', text: '启用' }
-              : { type: 'warning', text: '禁用' }
-            return h(
-              ElTag,
-              { type: statusConfig.type as 'success' | 'warning' },
-              () => statusConfig.text
+          formatter: (row) =>
+            h(ElTag, { type: row.enabled ? 'success' : 'warning' }, () =>
+              row.enabled ? '启用' : '禁用'
             )
-          }
         },
         {
           prop: 'createTime',
@@ -162,88 +130,64 @@
           label: '操作',
           width: 80,
           fixed: 'right',
-          formatter: (row) =>
-            h('div', [
-              h(ArtButtonMore, {
-                list: [
-                  {
-                    key: 'permission',
-                    label: '菜单权限',
-                    icon: 'ri:user-3-line'
-                  },
-                  {
-                    key: 'edit',
-                    label: '编辑角色',
-                    icon: 'ri:edit-2-line'
-                  },
-                  {
-                    key: 'delete',
-                    label: '删除角色',
-                    icon: 'ri:delete-bin-4-line',
-                    color: '#f56c6c'
-                  }
-                ],
-                onClick: (item: ButtonMoreItem) => buttonMoreClick(item, row)
-              })
-            ])
+          formatter: (row: RoleListItem) =>
+            h(ArtButtonMore, {
+              list: [
+                { key: 'permission', label: '菜单权限', icon: 'ri:user-3-line' },
+                { key: 'edit', label: '编辑角色', icon: 'ri:edit-2-line' },
+                {
+                  key: 'delete',
+                  label: '删除角色',
+                  icon: 'ri:delete-bin-4-line',
+                  color: '#f56c6c'
+                }
+              ],
+              onClick: (item: ButtonMoreItem) => buttonMoreClick(item, row)
+            })
         }
       ]
     }
   })
 
-  const dialogType = ref<'add' | 'edit'>('add')
-
   const showDialog = (type: 'add' | 'edit', row?: RoleListItem) => {
-    dialogVisible.value = true
     dialogType.value = type
     currentRoleData.value = row
+    dialogVisible.value = true
   }
-
-  /**
-   * 搜索处理
-   * @param params 搜索参数
-   */
   const handleSearch = (params: RoleSearchFormParams) => {
-    // 处理日期区间参数，把 daterange 转换为 startTime 和 endTime
-    const { daterange, ...filtersParams } = params
+    const { daterange, ...filters } = params
     const [startTime, endTime] = Array.isArray(daterange) ? daterange : [null, null]
-
-    replaceSearchParams({ ...filtersParams, startTime, endTime })
+    replaceSearchParams({ ...filters, startTime, endTime })
     getData()
   }
-
   const buttonMoreClick = (item: ButtonMoreItem, row: RoleListItem) => {
-    switch (item.key) {
-      case 'permission':
-        showPermissionDialog(row)
-        break
-      case 'edit':
-        showDialog('edit', row)
-        break
-      case 'delete':
-        deleteRole(row)
-        break
+    if (item.key === 'permission') {
+      currentRoleData.value = row
+      permissionDialog.value = true
+    } else if (item.key === 'edit') {
+      showDialog('edit', row)
+    } else if (item.key === 'delete') {
+      deleteRole(row)
     }
   }
-
-  const showPermissionDialog = (row?: RoleListItem) => {
-    permissionDialog.value = true
-    currentRoleData.value = row
+  const deleteRole = async (row: RoleListItem) => {
+    try {
+      await ElMessageBox.confirm(`确定删除角色“${row.roleName}”吗？`, '删除角色', {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      await fetchDeleteRole(row.roleId)
+      await refreshRemove()
+      ElMessage.success('角色删除成功')
+    } catch (error) {
+      if (error === 'cancel' || error === 'close') return
+      ElMessage.error(getErrorMessage(error, '角色删除失败'))
+    }
   }
-
-  const deleteRole = (row: RoleListItem) => {
-    ElMessageBox.confirm(`确定删除角色"${row.roleName}"吗？此操作不可恢复！`, '删除确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-      .then(() => {
-        // TODO: 调用删除接口
-        ElMessage.success('删除成功')
-        refreshData()
-      })
-      .catch(() => {
-        ElMessage.info('已取消删除')
-      })
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    const message = (error as { response?: { data?: { message?: string | string[] } } })?.response
+      ?.data?.message
+    return Array.isArray(message) ? message.join('；') : message || fallback
   }
 </script>

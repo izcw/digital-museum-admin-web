@@ -9,7 +9,12 @@
       @search="loadMenus"
     />
     <ElCard class="art-table-card">
-      <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="loadMenus">
+      <ArtTableHeader
+        v-model:columns="columnChecks"
+        :loading="loading"
+        :show-zebra="false"
+        @refresh="loadMenus"
+      >
         <template #left>
           <ElButton v-ripple type="primary" @click="handleAdd()">新增菜单</ElButton>
           <ElButton v-ripple @click="toggleExpand">{{
@@ -31,6 +36,7 @@
         v-model:visible="dialogVisible"
         :edit-data="editData"
         :parent-options="parentOptions"
+        :loading="saving"
         @submit="handleSubmit"
       />
     </ElCard>
@@ -53,8 +59,10 @@
 
   defineOptions({ name: 'Menus' })
   type MenuListItem = Api.SystemManage.MenuListItem
+  type ParentOption = { label: string; value: number; permissionCode: string }
 
   const loading = ref(false)
+  const saving = ref(false)
   const isExpanded = ref(false)
   const tableRef = ref()
   const tableData = ref<MenuListItem[]>([])
@@ -138,14 +146,19 @@
     }
   ])
 
-  const flattenMenus = (
-    items: MenuListItem[],
-    level = 0
-  ): Array<{ label: string; value: number }> =>
-    items.flatMap((item) => [
-      { label: `${'　'.repeat(level)}${formatMenuTitle(item.menuName)}`, value: item.menuId },
-      ...flattenMenus(item.children ?? [], level + 1)
-    ])
+  const flattenMenus = (items: MenuListItem[], level = 0): ParentOption[] =>
+    items.flatMap((item) =>
+      item.menuType === 'button'
+        ? []
+        : [
+            {
+              label: `${'　'.repeat(level)}${formatMenuTitle(item.menuName)}`,
+              value: item.menuId,
+              permissionCode: item.permissionCode
+            },
+            ...flattenMenus(item.children ?? [], level + 1)
+          ]
+    )
   const parentOptions = computed(() => flattenMenus(tableData.value))
 
   const loadMenus = async () => {
@@ -165,39 +178,53 @@
     loadMenus()
   }
   const handleAdd = (parentId: number | null = null) => {
-    editData.value = { parentId, menuType: 'menu', sort: 0, enabled: true }
+    editData.value = { parentId, menuType: 'menu', sort: 1, enabled: true }
     dialogVisible.value = true
   }
   const handleEdit = (row: MenuListItem) => {
-    editData.value = { ...row }
+    editData.value = { ...row, routeMeta: { ...row.routeMeta } }
     dialogVisible.value = true
   }
   const handleSubmit = async (payload: Api.SystemManage.MenuMutation & { menuId?: number }) => {
+    saving.value = true
     try {
       if (payload.menuId) {
         const { menuId, ...body } = payload
         await fetchUpdateMenu(menuId, body)
-        ElMessage.success('菜单已更新')
+        ElMessage.success(`${payload.menuType === 'button' ? '按钮' : '菜单'}已更新`)
       } else {
         await fetchCreateMenu(payload)
-        ElMessage.success('菜单已新增')
+        ElMessage.success(`${payload.menuType === 'button' ? '按钮' : '菜单'}已新增`)
       }
+      dialogVisible.value = false
       await loadMenus()
-    } catch {
-      ElMessage.error('保存失败，请检查权限标识是否重复')
+    } catch (error) {
+      ElMessage.error(getErrorMessage(error, '保存失败，请检查权限标识是否重复'))
+    } finally {
+      saving.value = false
     }
   }
   const handleDelete = async (row: MenuListItem) => {
+    const kind = row.menuType === 'button' ? '按钮' : '菜单'
     try {
-      await ElMessageBox.confirm(`确定删除“${formatMenuTitle(row.menuName)}”吗？`, '删除菜单', {
-        type: 'warning'
-      })
+      await ElMessageBox.confirm(
+        `确定删除${kind}“${formatMenuTitle(row.menuName)}”吗？`,
+        `删除${kind}`,
+        {
+          type: 'warning'
+        }
+      )
       await fetchDeleteMenu(row.menuId)
-      ElMessage.success('菜单已删除')
+      ElMessage.success(`${kind}已删除`)
       await loadMenus()
     } catch (error) {
       if (error !== 'cancel' && error !== 'close') ElMessage.error('删除失败，请先删除子节点')
     }
+  }
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    const message = (error as { response?: { data?: { message?: string | string[] } } })?.response
+      ?.data?.message
+    return Array.isArray(message) ? message.join('；') : message || fallback
   }
   const visitRows = (rows: MenuListItem[], callback: (row: MenuListItem) => void) =>
     rows.forEach((row) => {

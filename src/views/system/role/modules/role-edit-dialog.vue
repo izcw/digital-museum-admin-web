@@ -2,21 +2,24 @@
   <ElDialog
     v-model="visible"
     :title="dialogType === 'add' ? '新增角色' : '编辑角色'"
-    width="30%"
+    width="520px"
     align-center
-    @close="handleClose"
+    :close-on-click-modal="false"
+    @close="resetForm"
   >
-    <ElForm ref="formRef" :model="form" :rules="rules" label-width="120px">
+    <ElForm ref="formRef" :model="form" :rules="rules" label-width="100px">
       <ElFormItem label="角色名称" prop="roleName">
-        <ElInput v-model="form.roleName" placeholder="请输入角色名称" />
+        <ElInput v-model="form.roleName" maxlength="50" placeholder="请输入角色名称" />
       </ElFormItem>
       <ElFormItem label="角色编码" prop="roleCode">
-        <ElInput v-model="form.roleCode" placeholder="请输入角色编码" />
+        <ElInput v-model="form.roleCode" maxlength="50" placeholder="请输入角色编码" />
       </ElFormItem>
       <ElFormItem label="描述" prop="description">
         <ElInput
           v-model="form.description"
           type="textarea"
+          maxlength="500"
+          show-word-limit
           :rows="3"
           placeholder="请输入角色描述"
         />
@@ -26,141 +29,88 @@
       </ElFormItem>
     </ElForm>
     <template #footer>
-      <ElButton @click="handleClose">取消</ElButton>
-      <ElButton type="primary" @click="handleSubmit">提交</ElButton>
+      <ElButton :disabled="saving" @click="visible = false">取消</ElButton>
+      <ElButton type="primary" :loading="saving" @click="handleSubmit">提交</ElButton>
     </template>
   </ElDialog>
 </template>
 
 <script setup lang="ts">
-  import type { FormInstance, FormRules } from 'element-plus'
+  import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+  import { fetchCreateRole, fetchUpdateRole } from '@/api/system-manage'
 
   type RoleListItem = Api.SystemManage.RoleListItem
 
-  interface Props {
-    modelValue: boolean
-    dialogType: 'add' | 'edit'
-    roleData?: RoleListItem
-  }
+  const props = withDefaults(
+    defineProps<{
+      modelValue: boolean
+      dialogType: 'add' | 'edit'
+      roleData?: RoleListItem
+    }>(),
+    { modelValue: false, dialogType: 'add', roleData: undefined }
+  )
+  const emit = defineEmits<{
+    (event: 'update:modelValue', value: boolean): void
+    (event: 'success'): void
+  }>()
 
-  interface Emits {
-    (e: 'update:modelValue', value: boolean): void
-    (e: 'success'): void
-  }
-
-  const props = withDefaults(defineProps<Props>(), {
-    modelValue: false,
-    dialogType: 'add',
-    roleData: undefined
-  })
-
-  const emit = defineEmits<Emits>()
-
-  const formRef = ref<FormInstance>()
-
-  /**
-   * 弹窗显示状态双向绑定
-   */
   const visible = computed({
     get: () => props.modelValue,
     set: (value) => emit('update:modelValue', value)
   })
-
-  /**
-   * 表单验证规则
-   */
-  const rules = reactive<FormRules>({
-    roleName: [
-      { required: true, message: '请输入角色名称', trigger: 'blur' },
-      { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
-    ],
-    roleCode: [
-      { required: true, message: '请输入角色编码', trigger: 'blur' },
-      { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
-    ],
-    description: [{ required: true, message: '请输入角色描述', trigger: 'blur' }]
-  })
-
-  /**
-   * 表单数据
-   */
-  const form = reactive<RoleListItem>({
-    index: 0,
-    roleId: 0,
+  const formRef = ref<FormInstance>()
+  const saving = ref(false)
+  const form = reactive<Api.SystemManage.RoleMutation>({
     roleName: '',
     roleCode: '',
     description: '',
-    createTime: '',
-    updateTime: '',
     enabled: true
   })
+  const rules: FormRules = {
+    roleName: [
+      { required: true, message: '请输入角色名称', trigger: 'blur' },
+      { min: 2, max: 50, message: '角色名称长度为 2 到 50 个字符', trigger: 'blur' }
+    ],
+    roleCode: [
+      { required: true, message: '请输入角色编码', trigger: 'blur' },
+      { min: 2, max: 50, message: '角色编码长度为 2 到 50 个字符', trigger: 'blur' }
+    ]
+  }
 
-  /**
-   * 监听弹窗打开，初始化表单数据
-   */
+  const initForm = () => {
+    const role = props.dialogType === 'edit' ? props.roleData : undefined
+    Object.assign(form, {
+      roleName: role?.roleName ?? '',
+      roleCode: role?.roleCode ?? '',
+      description: role?.description ?? '',
+      enabled: role?.enabled ?? true
+    })
+    nextTick(() => formRef.value?.clearValidate())
+  }
   watch(
     () => props.modelValue,
-    (newVal) => {
-      if (newVal) initForm()
-    }
+    (open) => open && initForm()
   )
 
-  /**
-   * 监听角色数据变化，更新表单
-   */
-  watch(
-    () => props.roleData,
-    (newData) => {
-      if (newData && props.modelValue) initForm()
-    },
-    { deep: true }
-  )
-
-  /**
-   * 初始化表单数据
-   * 根据弹窗类型填充表单或重置表单
-   */
-  const initForm = () => {
-    if (props.dialogType === 'edit' && props.roleData) {
-      Object.assign(form, props.roleData)
-    } else {
-      Object.assign(form, {
-        index: 0,
-        roleId: 0,
-        roleName: '',
-        roleCode: '',
-        description: '',
-        createTime: '',
-        updateTime: '',
-        enabled: true
-      })
-    }
-  }
-
-  /**
-   * 关闭弹窗并重置表单
-   */
-  const handleClose = () => {
-    visible.value = false
-    formRef.value?.resetFields()
-  }
-
-  /**
-   * 提交表单
-   * 验证通过后调用接口保存数据
-   */
   const handleSubmit = async () => {
-    if (!formRef.value) return
-
+    if (!formRef.value || !(await formRef.value.validate())) return
+    saving.value = true
     try {
-      await formRef.value.validate()
-      // TODO: 调用新增/编辑接口
-      const message = props.dialogType === 'add' ? '新增成功' : '修改成功'
-      ElMessage.success(message)
+      if (props.dialogType === 'add') await fetchCreateRole({ ...form })
+      else await fetchUpdateRole(props.roleData!.roleId, { ...form })
+      ElMessage.success(props.dialogType === 'add' ? '角色新增成功' : '角色修改成功')
       emit('success')
-      handleClose()
+      visible.value = false
     } catch (error) {
-      console.log('表单验证失败:', error)
+      ElMessage.error(getErrorMessage(error, '角色保存失败'))
+    } finally {
+      saving.value = false
     }
+  }
+  const resetForm = () => formRef.value?.resetFields()
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    const message = (error as { response?: { data?: { message?: string | string[] } } })?.response
+      ?.data?.message
+    return Array.isArray(message) ? message.join('；') : message || fallback
   }
 </script>
