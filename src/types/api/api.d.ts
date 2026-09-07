@@ -157,5 +157,64 @@ declare namespace Api {
     type MenuSearchParams = Partial<
       Pick<MenuListItem, 'menuName' | 'route'> & Api.Common.CommonSearchParams
     >
+
+    type LogStatus = 'success' | 'failure'
+
+    interface OperationLogItem {
+      id: number
+      logCode: string
+      module: string
+      operationType: 'QUERY' | 'CREATE' | 'UPDATE' | 'DELETE' | 'EXPORT' | 'OTHER'
+      operatorId: number | null
+      operatorName: string
+      requestMethod: string
+      requestUrl: string
+      ipAddress: string
+      status: LogStatus
+      responseCode: number
+      durationMs: number
+      description: string
+      errorMessage: string
+      requestParams: unknown
+      responseParams: unknown
+      operationTime: string
+    }
+
+    type OperationLogList = Api.Common.PaginatedResponse<OperationLogItem>
+    type OperationLogSearchParams = Partial<
+      Pick<OperationLogItem, 'module' | 'operationType' | 'status'> &
+        Api.Common.CommonSearchParams & {
+          keyword: string
+          startTime: string
+          endTime: string
+        }
+    >
+
+    interface LoginLogItem {
+      id: number
+      logCode: string
+      event: 'LOGIN' | 'LOGOUT'
+      userId: number | null
+      username: string
+      deviceType: string
+      ipAddress: string
+      location: string
+      operatingSystem: string
+      browser: string
+      userAgent: string
+      status: LogStatus
+      description: string
+      loginTime: string
+    }
+
+    type LoginLogList = Api.Common.PaginatedResponse<LoginLogItem>
+    type LoginLogSearchParams = Partial<
+      Pick<LoginLogItem, 'event' | 'status'> &
+        Api.Common.CommonSearchParams & {
+          keyword: string
+          startTime: string
+          endTime: string
+        }
+    >
   }
 }

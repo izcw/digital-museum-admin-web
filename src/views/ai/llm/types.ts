@@ -7,8 +7,6 @@ export interface LlmModel {
   model: string
   baseUrl: string
   apiKey: string
-  organization: string
-  project: string
   maxTokens: number
   temperature: number
   topP: number

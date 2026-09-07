@@ -9,6 +9,35 @@
 
 import { h } from 'vue'
 
+// 已规划但尚未上线的业务页面。真实组件存在时优先加载真实组件。
+const plannedPages = new Set([
+  '/school/list',
+  '/school/admin',
+  '/school/stats',
+  '/device/monitor',
+  '/device/alert',
+  '/device/version',
+  '/content/media',
+  '/content/collect',
+  '/content/topic',
+  '/content/question-bank',
+  '/ai/model/asr',
+  '/ai/model/tts',
+  '/ai/knowledge/base',
+  '/ai/knowledge/prompt',
+  '/ai/knowledge/script',
+  '/ai/digital/avatar',
+  '/ai/digital/voice',
+  '/ai/digital/dialogue',
+  '/ai/conversation/record',
+  '/ai/conversation/qa',
+  '/ai/conversation/review',
+  '/ai/stats/calls',
+  '/ai/stats/token-cost',
+  '/ai/stats/latency',
+  '/ai/stats/errors'
+])
+
 export class ComponentLoader {
   private modules: Record<string, () => Promise<any>>
 
@@ -33,6 +62,9 @@ export class ComponentLoader {
     const module = this.modules[fullPath] || this.modules[fullPathWithIndex]
 
     if (!module) {
+      if (plannedPages.has(componentPath)) {
+        return () => import('@/views/system/feature-pending/index.vue')
+      }
       console.error(
         `[ComponentLoader] 未找到组件: ${componentPath}，尝试过的路径: ${fullPath} 和 ${fullPathWithIndex}`
       )

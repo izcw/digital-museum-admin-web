@@ -42,6 +42,14 @@ export default ({ mode }: { mode: string }) => {
           target: VITE_AUTH_API_PROXY_URL,
           changeOrigin: true
         },
+        '/operation-logs': {
+          target: VITE_AUTH_API_PROXY_URL,
+          changeOrigin: true
+        },
+        '/login-logs': {
+          target: VITE_AUTH_API_PROXY_URL,
+          changeOrigin: true
+        },
         '/currentUser': {
           target: VITE_AUTH_API_PROXY_URL,
           changeOrigin: true

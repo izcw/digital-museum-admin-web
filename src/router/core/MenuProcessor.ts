@@ -30,7 +30,8 @@ export class MenuProcessor {
     }
 
     // 在规范化路径之前，验证原始路径配置
-    this.validateMenuPaths(menuList)
+    // 后端菜单分组可独立于 URL 层级；绝对路径由 Vue Router 原生支持。
+    this.validateMenuPaths(menuList, 1, !isFrontendMode.value)
 
     // 规范化路径（将相对路径转换为完整路径）
     return this.normalizeMenuPaths(menuList)
@@ -194,7 +195,7 @@ export class MenuProcessor {
    * 验证菜单路径配置
    * 检测非一级菜单是否错误使用了 / 开头的路径
    */
-  private validateMenuPaths(menuList: AppRouteRecord[], level = 1): void {
+  private validateMenuPaths(menuList: AppRouteRecord[], level = 1, allowAbsolute = false): void {
     menuList.forEach((route) => {
       if (!route.children?.length) return
 
@@ -207,13 +208,13 @@ export class MenuProcessor {
         if (this.isValidAbsolutePath(childPath)) return
 
         // 检测非法的绝对路径
-        if (childPath.startsWith('/')) {
+        if (childPath.startsWith('/') && !allowAbsolute) {
           this.logPathError(child, childPath, parentName, level)
         }
       })
 
       // 递归检查更深层级的子路由
-      this.validateMenuPaths(route.children, level + 1)
+      this.validateMenuPaths(route.children, level + 1, allowAbsolute)
     })
   }
 

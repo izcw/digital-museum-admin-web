@@ -227,7 +227,7 @@
       >
     </ElDialog>
 
-    <ElDrawer v-model="detailVisible" title="设备详情" size="520px">
+    <ElDrawer v-model="detailVisible" title="设备详情" size="1000px">
       <template v-if="currentDevice">
         <div class="detail-title">
           <ElAvatar shape="square" :size="64" :src="getModelImage(currentDevice.modelId)" />

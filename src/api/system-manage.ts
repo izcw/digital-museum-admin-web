@@ -99,3 +99,66 @@ export async function fetchDeleteMenu(menuId: number) {
   const { data } = await apiServerRequest.delete<{ success: boolean }>(`/menus/${menuId}`)
   return data
 }
+
+export async function fetchGetOperationLogList(params: Api.SystemManage.OperationLogSearchParams) {
+  const { data } = await apiServerRequest.get<Api.SystemManage.OperationLogList>(
+    '/operation-logs',
+    { params }
+  )
+  return data
+}
+
+export async function fetchGetOperationLog(logId: number) {
+  const { data } = await apiServerRequest.get<Api.SystemManage.OperationLogItem>(
+    `/operation-logs/${logId}`
+  )
+  return data
+}
+
+export async function fetchDeleteOperationLog(logId: number) {
+  const { data } = await apiServerRequest.delete<{ success: boolean }>(`/operation-logs/${logId}`)
+  return data
+}
+
+export async function fetchClearOperationLogs() {
+  const { data } = await apiServerRequest.delete<{ success: boolean }>('/operation-logs/clear')
+  return data
+}
+
+export async function fetchExportOperationLogs(params: Api.SystemManage.OperationLogSearchParams) {
+  const { data } = await apiServerRequest.get<Blob>('/operation-logs/export', {
+    params,
+    responseType: 'blob'
+  })
+  return data
+}
+
+export async function fetchGetLoginLogList(params: Api.SystemManage.LoginLogSearchParams) {
+  const { data } = await apiServerRequest.get<Api.SystemManage.LoginLogList>('/login-logs', {
+    params
+  })
+  return data
+}
+
+export async function fetchGetLoginLog(logId: number) {
+  const { data } = await apiServerRequest.get<Api.SystemManage.LoginLogItem>(`/login-logs/${logId}`)
+  return data
+}
+
+export async function fetchDeleteLoginLog(logId: number) {
+  const { data } = await apiServerRequest.delete<{ success: boolean }>(`/login-logs/${logId}`)
+  return data
+}
+
+export async function fetchClearLoginLogs() {
+  const { data } = await apiServerRequest.delete<{ success: boolean }>('/login-logs/clear')
+  return data
+}
+
+export async function fetchExportLoginLogs(params: Api.SystemManage.LoginLogSearchParams) {
+  const { data } = await apiServerRequest.get<Blob>('/login-logs/export', {
+    params,
+    responseType: 'blob'
+  })
+  return data
+}

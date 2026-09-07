@@ -48,24 +48,6 @@
           </ElFormItem>
         </ElCol>
         <ElCol :span="12">
-          <ElFormItem label="Organization">
-            <ElInput
-              v-model="formData.organization"
-              maxlength="100"
-              placeholder="选填，如 org-xxxxxxxx"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Project">
-            <ElInput
-              v-model="formData.project"
-              maxlength="100"
-              placeholder="选填，如 proj_xxxxxxxx"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
           <ElFormItem label="Max Tokens" prop="maxTokens">
             <ElInputNumber
               v-model="formData.maxTokens"
@@ -180,8 +162,6 @@
     model: '',
     baseUrl: 'https://api.openai.com/v1',
     apiKey: '',
-    organization: '',
-    project: '',
     maxTokens: 8192,
     temperature: 0.7,
     topP: 1,
@@ -227,8 +207,6 @@
       model: formData.model.trim(),
       baseUrl: formData.baseUrl.trim().replace(/\/$/, ''),
       apiKey: formData.apiKey.trim(),
-      organization: formData.organization.trim(),
-      project: formData.project.trim(),
       remark: formData.remark.trim()
     })
   }
