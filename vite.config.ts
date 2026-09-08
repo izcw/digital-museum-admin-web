@@ -65,6 +65,10 @@ export default ({ mode }: { mode: string }) => {
         '/menus': {
           target: VITE_AUTH_API_PROXY_URL,
           changeOrigin: true
+        },
+        '/ota': {
+          target: VITE_AUTH_API_PROXY_URL,
+          changeOrigin: true
         }
       },
       host: true

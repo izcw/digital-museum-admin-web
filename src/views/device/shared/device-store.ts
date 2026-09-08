@@ -1,4 +1,5 @@
 import deviceImage1 from '@imgs/device/device-01.png'
+import { apiServerRequest } from '@/api/auth'
 import deviceImage2 from '@imgs/device/device-02.png'
 import deviceImage3 from '@imgs/device/device-03.png'
 
@@ -318,7 +319,58 @@ export const devices = ref<Device[]>([
 ])
 
 const nextId = (records: Array<{ id: number }>) =>
-  records.length ? Math.max(...records.map((item) => item.id)) + 1 : 1
+  Math.max(0, ...records.filter((item) => item.id < 1_000_000_000).map((item) => item.id)) + 1
+
+const registeredGroupId = 2_147_483_647
+export async function loadRegisteredDevices() {
+  const { data } = await apiServerRequest.get<
+    Array<{
+      id: number
+      serialNumber: string
+      clientVersion: string
+      createdAt: string
+      updatedAt: string
+    }>
+  >('/ota/devices')
+  if (!deviceGroups.value.some((group) => group.id === registeredGroupId)) {
+    deviceGroups.value.push({
+      id: registeredGroupId,
+      groupCode: 'OTA-REGISTERED',
+      groupName: '自动注册终端',
+      level: 1,
+      path: `/${registeredGroupId}`,
+      location: '',
+      sort: 999,
+      status: 'enabled',
+      remark: '客户端自动登记的真实电脑',
+      createdAt: now(),
+      updatedAt: now()
+    })
+  }
+  devices.value = [
+    ...devices.value.filter((device) => device.id < 1_000_000_000),
+    ...data.map((device) => ({
+      id: device.id,
+      deviceCode: device.serialNumber,
+      deviceName: `终端 ${device.serialNumber.slice(-8)}`,
+      serialNumber: device.serialNumber,
+      modelId: 0,
+      groupId: registeredGroupId,
+      location: '',
+      status: 'enabled' as const,
+      onlineStatus: 'unknown' as const,
+      powerStatus: 'off' as const,
+      registeredAt: device.createdAt,
+      ipAddress: '',
+      macAddress: '',
+      clientVersion: device.clientVersion,
+      systemVersion: 'Windows',
+      remark: '自动注册',
+      createdAt: device.createdAt,
+      updatedAt: device.updatedAt
+    }))
+  ]
+}
 
 export const getModelName = (modelId: number) =>
   deviceModels.value.find((item) => item.id === modelId)?.modelName ?? '未分配型号'

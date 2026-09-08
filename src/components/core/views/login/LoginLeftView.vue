@@ -98,7 +98,7 @@
   .login-left-view {
     position: relative;
     box-sizing: border-box;
-    width: 30vw;
+    width: 50vw;
     height: 100%;
     padding: 15px;
     overflow: hidden;

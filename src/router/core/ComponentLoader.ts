@@ -16,7 +16,6 @@ const plannedPages = new Set([
   '/school/stats',
   '/device/monitor',
   '/device/alert',
-  '/device/version',
   '/content/media',
   '/content/collect',
   '/content/topic',

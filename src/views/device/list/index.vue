@@ -1,5 +1,5 @@
 <template>
-  <div class="device-list-page page-content !mb-5">
+  <div class="device-list-page page-content art-full-height">
     <section class="overview-grid">
       <div v-for="item in overviewItems" :key="item.label" class="overview-card">
         <div class="overview-icon" :class="item.className"><ArtSvgIcon :icon="item.icon" /></div>
@@ -77,10 +77,10 @@
                 </button>
                 <template #dropdown>
                   <ElDropdownMenu>
-                    <ElDropdownItem command="edit">
+                    <ElDropdownItem command="edit" :disabled="item.id >= 1_000_000_000">
                       <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
                     </ElDropdownItem>
-                    <ElDropdownItem command="delete" divided>
+                    <ElDropdownItem command="delete" divided :disabled="item.id >= 1_000_000_000">
                       <span class="text-danger">
                         <ArtSvgIcon icon="ri:delete-bin-4-line" class="mr-2" />删除设备
                       </span>
@@ -265,7 +265,13 @@
             currentDevice.systemVersion || '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem label="电源状态">
-            {{ currentDevice.powerStatus === 'on' ? '运行中' : '已关机' }}
+            {{
+              currentDevice.id >= 1_000_000_000
+                ? '尚未上报'
+                : currentDevice.powerStatus === 'on'
+                  ? '运行中'
+                  : '已关机'
+            }}
           </ElDescriptionsItem>
           <ElDescriptionsItem label="最后心跳">{{
             currentDevice.lastHeartbeatAt
@@ -277,7 +283,7 @@
         <div class="detail-actions-panel">
           <ElButton
             :type="currentDevice.powerStatus === 'on' ? 'danger' : 'success'"
-            :disabled="currentDevice.status === 'disabled'"
+            :disabled="currentDevice.status === 'disabled' || currentDevice.id >= 1_000_000_000"
             @click="handlePower(currentDevice)"
           >
             <ArtSvgIcon icon="ri:shut-down-line" class="mr-1" />
@@ -308,6 +314,7 @@
     getModelName,
     removeDevice,
     saveDevice,
+    loadRegisteredDevices,
     updateDevicePower,
     type Device,
     type DeviceMutation,
@@ -315,6 +322,9 @@
   } from '../shared/device-store'
 
   defineOptions({ name: 'DeviceList' })
+  onMounted(() => {
+    void loadRegisteredDevices().catch(() => ElMessage.error('加载注册终端失败'))
+  })
   type DeviceForm = Omit<DeviceMutation, 'modelId'> & { modelId?: number }
   type TreeOption = { value: number; label: string; disabled?: boolean; children?: TreeOption[] }
 
@@ -552,7 +562,8 @@
 
 <style scoped lang="scss">
   .device-list-page {
-    min-height: 100%;
+    box-sizing: border-box;
+    min-height: 0;
   }
 
   .overview-grid {
@@ -645,8 +656,10 @@
 
   .device-grid {
     display: grid;
+    flex: 1;
     grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 14px;
+    align-content: start;
   }
 
   .device-card {
@@ -848,12 +861,14 @@
 
   .pagination-wrap {
     display: flex;
+    flex: none;
     justify-content: center;
-    margin-top: 22px;
+    padding-top: 22px;
   }
 
   .empty-card {
     display: grid;
+    flex: 1;
     place-items: center;
     min-height: 360px;
   }
