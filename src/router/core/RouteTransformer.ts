@@ -50,7 +50,31 @@ export class RouteTransformer {
 
     // 递归处理子路由
     if (children?.length) {
-      converted.children = children.map((child) => this.transform(child, depth + 1))
+      converted.children = children.flatMap((child) => {
+        const routes = [this.transform(child, depth + 1)]
+        // 详情页随设备监控菜单一起注册，沿用该菜单的访问权限。
+        if (child.name === 'DeviceMonitor') {
+          routes.push(
+            this.transform(
+              {
+                ...child,
+                path: `${child.path}/detail`,
+                name: 'DeviceMonitorDetail',
+                children: undefined,
+                meta: {
+                  ...child.meta,
+                  title: '设备监控详情',
+                  isHide: true,
+                  keepAlive: false,
+                  activePath: child.path
+                }
+              },
+              depth + 1
+            )
+          )
+        }
+        return routes
+      })
     }
 
     return converted

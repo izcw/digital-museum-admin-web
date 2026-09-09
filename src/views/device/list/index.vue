@@ -93,6 +93,9 @@
                 </button>
                 <template #dropdown>
                   <ElDropdownMenu>
+                    <ElDropdownItem command="monitor">
+                      <ArtSvgIcon icon="ri:dashboard-3-line" class="mr-2" />设备监控
+                    </ElDropdownItem>
                     <ElDropdownItem command="edit">
                       <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
                     </ElDropdownItem>
@@ -142,6 +145,9 @@
             </span>
           </div>
           <div class="device-actions">
+            <ElButton size="small" @click="openMonitor(item)">
+              <ArtSvgIcon icon="ri:dashboard-3-line" class="mr-1" />设备监控
+            </ElButton>
             <ElButton size="small" @click="handleCommand('detail', item)">
               <ArtSvgIcon icon="ri:eye-line" class="mr-1" />查看详情
             </ElButton>
@@ -398,6 +404,13 @@
   } from '../shared/device-store'
 
   defineOptions({ name: 'DeviceList' })
+  const router = useRouter()
+  const openMonitor = (row: Device) => {
+    void router.push({
+      name: 'DeviceMonitorDetail',
+      query: { deviceId: String(row.id), deviceName: row.deviceName, deviceCode: row.deviceCode }
+    })
+  }
   const devicesLoading = ref(false)
   const devicesFailed = ref(false)
   const schoolsLoading = ref(false)
@@ -678,6 +691,7 @@
   const contextDeviceId = ref<number>()
   const deviceMenuItems = computed<MenuItemType[]>(() => [
     { key: 'detail', label: '查看详情', icon: 'ri:eye-line' },
+    { key: 'monitor', label: '设备监控', icon: 'ri:dashboard-3-line' },
     { key: 'edit', label: '编辑设备', icon: 'ri:edit-2-line', showLine: true },
     {
       key: 'delete',
@@ -703,6 +717,7 @@
 
   const handleCommand = (command: string, row: Device) => {
     hideDeviceMenu()
+    if (command === 'monitor') openMonitor(row)
     if (command === 'detail') {
       currentDevice.value = row
       detailVisible.value = true

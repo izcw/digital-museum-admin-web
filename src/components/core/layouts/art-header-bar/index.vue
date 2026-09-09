@@ -116,7 +116,11 @@
           class="notice-button relative"
           @click="visibleNotice"
         >
-          <div class="absolute top-2 right-2 size-1.5 !bg-danger rounded-full"></div>
+          <div
+            v-if="headerUnreadCount"
+            class="absolute top-1 right-1 min-w-4 h-4 px-1 text-[9px] leading-4 text-center text-white !bg-danger rounded-full"
+            >{{ headerUnreadCount > 9 ? '9+' : headerUnreadCount }}</div
+          >
         </ArtIconButton>
 
         <!-- 聊天按钮 -->
@@ -183,6 +187,7 @@
   import { useCommon } from '@/hooks/core/useCommon'
   import { useHeaderBar } from '@/hooks/core/useHeaderBar'
   import ArtUserMenu from './widget/ArtUserMenu.vue'
+  import { notices } from '@/views/notification/shared/store'
 
   defineOptions({ name: 'ArtHeaderBar' })
 
@@ -220,6 +225,9 @@
   const { menuList } = storeToRefs(menuStore)
 
   const showNotice = ref(false)
+  const headerUnreadCount = computed(
+    () => notices.value.filter((item) => item.status === 'published' && item.unread).length
+  )
   const notice = ref(null)
 
   // 菜单类型判断
