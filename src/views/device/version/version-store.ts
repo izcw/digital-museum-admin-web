@@ -68,12 +68,11 @@ export interface VersionDraft {
 }
 
 export interface CreateReleaseTaskInput {
-  targetGroupIds: number[]
-  targetGroups: string[]
+  allSchools: boolean
+  schoolIds: number[]
   rolloutPercentage: number
   mandatory: boolean
   scheduledAt?: string
-  deviceIds: number[]
 }
 
 type VersionListResponse = {

@@ -5,7 +5,7 @@
         <div class="title-line">
           <h1>版本与更新</h1>
         </div>
-        <p>集中管理 Client 安装包，按设备分组执行灰度发布并跟踪升级进度。</p>
+        <p>集中管理 Client 安装包，按关联学校执行灰度发布并跟踪升级进度。</p>
       </div>
       <ElButton type="primary" @click="openCreateDialog">
         <ArtSvgIcon icon="ri:upload-cloud-2-line" />
@@ -126,23 +126,30 @@
       :close-on-click-modal="false"
     >
       <ElForm :model="publishForm" label-width="106px">
-        <ElFormItem label="目标设备组" required>
+        <ElFormItem label="关联学校" required>
           <ElSelect
-            v-model="publishForm.groupIds"
+            v-model="publishForm.schoolIds"
+            @change="handleSchoolSelection"
             multiple
             collapse-tags
             collapse-tags-tooltip
             class="w-full"
-            placeholder="请选择设备分组"
+            placeholder="请选择关联学校"
+            :loading="targetsLoading"
+            :disabled="targetsLoading || targetsFailed"
           >
+            <ElOption label="全部" :value="0" />
             <ElOption
-              v-for="group in selectableGroups"
-              :key="group.id"
-              :label="`${group.groupName}（${getGroupDeviceCount(group.id)} 台）`"
-              :value="group.id"
+              v-for="school in publishSchools"
+              :key="school.id"
+              :label="`${school.name}（${schoolDeviceCount(school.id)} 台）`"
+              :value="school.id"
             />
           </ElSelect>
         </ElFormItem>
+        <ElButton v-if="targetsFailed" link type="primary" @click="loadPublishTargets"
+          >学校及设备加载失败，点击重试</ElButton
+        >
         <ElFormItem label="灰度比例">
           <div class="rollout-field">
             <ElSlider v-model="publishForm.rolloutPercentage" :step="10" :min="10" show-stops />
@@ -176,7 +183,13 @@
       />
       <template #footer>
         <ElButton @click="publishDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="publishing" @click="submitPublish">确认发布</ElButton>
+        <ElButton
+          type="primary"
+          :loading="publishing"
+          :disabled="targetsLoading || targetsFailed || !selectedTargetDevices.length"
+          @click="submitPublish"
+          >确认发布</ElButton
+        >
       </template>
     </ElDialog>
 
@@ -207,7 +220,7 @@
           <ElDescriptionsItem label="发布时间">{{
             currentRecord.publishedAt ? formatDateTime(currentRecord.publishedAt) : '-'
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="目标分组">{{
+          <ElDescriptionsItem label="关联学校">{{
             currentDetailTask?.targetGroups.join('、') || '尚未设置'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem label="更新策略">{{
@@ -315,15 +328,10 @@
     type UploadFile,
     type UploadUserFile
   } from 'element-plus'
+  import { apiServerRequest } from '@/api/auth'
   import { formatDateTime } from '@/utils/date'
   import { useTableColumns } from '@/hooks/core/useTableColumns'
-  import {
-    deviceGroups,
-    devices,
-    getGroupDeviceCount,
-    loadRegisteredDevices,
-    type Device
-  } from '../shared/device-store'
+  import { type Device } from '../shared/device-store'
   import {
     addVersionDraft,
     archiveVersion,
@@ -402,7 +410,7 @@
   })
   const form = reactive(createEmptyForm())
   const publishForm = reactive({
-    groupIds: [] as number[],
+    schoolIds: [0] as number[],
     rolloutPercentage: 100,
     scheduleMode: 'immediate' as 'immediate' | 'scheduled',
     scheduledAt: undefined as Date | undefined,
@@ -422,27 +430,43 @@
     releaseNotes: [{ required: true, message: '请填写更新说明', trigger: 'blur' }]
   }
 
-  const selectableGroups = computed(() =>
-    deviceGroups.value.filter(
-      (group) => group.status === 'enabled' && getGroupDeviceCount(group.id) > 0
-    )
-  )
+  const publishSchools = ref<Array<{ id: number; name: string }>>([])
+  const publishTargets = ref<Device[]>([])
+  const targetsLoading = ref(false)
+  const targetsFailed = ref(false)
+  let previousSchoolIds = [0]
+  const handleSchoolSelection = (ids: number[]) => {
+    if (ids.includes(0) && ids.length > 1)
+      publishForm.schoolIds = previousSchoolIds.includes(0) ? ids.filter((id) => id !== 0) : [0]
+    previousSchoolIds = [...publishForm.schoolIds]
+  }
+  const loadPublishTargets = async () => {
+    targetsLoading.value = true
+    targetsFailed.value = false
+    try {
+      const { data } = await apiServerRequest.get<{
+        schools: typeof publishSchools.value
+        devices: Device[]
+      }>('/ota/release-targets', { timeout: 15000 })
+      publishSchools.value = data.schools
+      publishTargets.value = data.devices
+    } catch (error) {
+      targetsFailed.value = true
+      publishTargets.value = []
+      showRequestError(error)
+    } finally {
+      targetsLoading.value = false
+    }
+  }
+  const schoolDeviceCount = (id: number) =>
+    publishTargets.value.filter((d) => d.schoolId === id).length
   const selectedTargetDevices = computed(() => {
-    const selectedPaths = deviceGroups.value
-      .filter((group) => publishForm.groupIds.includes(group.id))
-      .map((group) => group.path)
-    const candidates = devices.value
-      .filter((device) => {
-        if (device.status !== 'enabled' || !device.groupId) return false
-        const group = deviceGroups.value.find((item) => item.id === device.groupId)
-        return Boolean(
-          group &&
-            selectedPaths.some((path) => group.path === path || group.path.startsWith(`${path}/`))
-        )
-      })
+    const candidates = publishTargets.value
+      .filter(
+        (d) => publishForm.schoolIds.includes(0) || publishForm.schoolIds.includes(d.schoolId ?? -1)
+      )
       .sort((a, b) => a.id - b.id)
-    const rolloutCount = Math.ceil((candidates.length * publishForm.rolloutPercentage) / 100)
-    return candidates.slice(0, rolloutCount)
+    return candidates.slice(0, Math.ceil((candidates.length * publishForm.rolloutPercentage) / 100))
   })
   const latestSoftware = computed(
     () =>
@@ -475,7 +499,7 @@
     },
     {
       label: '纳管设备',
-      value: `${devices.value.length} 台`,
+      value: `${publishTargets.value.length} 台`,
       icon: 'ri:computer-line',
       iconStyle: 'bg-secondary'
     },
@@ -698,7 +722,7 @@
   }
 
   function getDevice(deviceId: number): Device | undefined {
-    return devices.value.find((device) => device.id === deviceId)
+    return publishTargets.value.find((device) => device.id === deviceId)
   }
 
   function applySearch() {
@@ -718,7 +742,7 @@
   async function refreshData(showMessage = true) {
     loading.value = true
     try {
-      await loadRegisteredDevices()
+      await loadPublishTargets()
       await loadVersions()
       applySearch()
       if (showMessage) ElMessage.success('版本数据已刷新')
@@ -804,39 +828,38 @@
   function openPublishDialog(row: VersionRecord) {
     currentRecord.value = row
     Object.assign(publishForm, {
-      groupIds: [],
-      rolloutPercentage: row.status === 'draft' ? 10 : 100,
+      schoolIds: [0],
+      rolloutPercentage: 100,
       scheduleMode: 'immediate',
       scheduledAt: undefined,
       mandatory: false
     })
+    previousSchoolIds = [0]
+    void loadPublishTargets()
     publishDialogVisible.value = true
   }
 
   async function submitPublish() {
-    if (publishing.value || !currentRecord.value) return
-    if (!publishForm.groupIds.length) return void ElMessage.warning('请选择至少一个设备分组')
-    if (!selectedTargetDevices.value.length) return void ElMessage.warning('所选分组没有可更新设备')
+    if (publishing.value || targetsLoading.value || targetsFailed.value || !currentRecord.value)
+      return
+    if (!publishForm.schoolIds.length) return void ElMessage.warning('请选择关联学校或全部')
+    if (!selectedTargetDevices.value.length) return void ElMessage.warning('所选学校没有可更新设备')
     if (publishForm.scheduleMode === 'scheduled') {
       if (!publishForm.scheduledAt) return void ElMessage.warning('请选择定时下发时间')
       if (publishForm.scheduledAt.getTime() <= Date.now())
         return void ElMessage.warning('定时下发时间必须晚于当前时间')
     }
-    const groupNames = publishForm.groupIds.map(
-      (id) => selectableGroups.value.find((group) => group.id === id)?.groupName ?? ''
-    )
     publishing.value = true
     try {
       await createReleaseTask(currentRecord.value.id, {
-        targetGroupIds: [...publishForm.groupIds],
-        targetGroups: groupNames,
+        allSchools: publishForm.schoolIds.includes(0),
+        schoolIds: publishForm.schoolIds.filter((id) => id !== 0),
         rolloutPercentage: publishForm.rolloutPercentage,
         mandatory: publishForm.mandatory,
         scheduledAt:
           publishForm.scheduleMode === 'scheduled'
             ? publishForm.scheduledAt?.toISOString()
-            : undefined,
-        deviceIds: selectedTargetDevices.value.map((device) => device.id)
+            : undefined
       })
       publishDialogVisible.value = false
       activeStatusTab.value = publishForm.scheduleMode === 'scheduled' ? 'unpublished' : 'published'

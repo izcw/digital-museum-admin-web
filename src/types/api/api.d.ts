@@ -79,6 +79,7 @@ declare namespace Api {
       buttons: string[]
       roles: string[]
       userId: number
+      schoolId?: number
       userName: string
       email: string
       avatar?: string

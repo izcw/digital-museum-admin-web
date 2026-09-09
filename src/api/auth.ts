@@ -15,6 +15,9 @@ type ApiServerCurrentUser = {
     name: string
     email: string
     access: string
+    roles?: string[]
+    permissions?: string[]
+    schoolId?: number
   }
 }
 
@@ -50,8 +53,9 @@ export async function fetchGetUserInfo(): Promise<Api.Auth.UserInfo> {
     const user = data.data
 
     return {
-      buttons: [],
-      roles: [],
+      buttons: user.permissions ?? [],
+      roles: user.roles ?? [],
+      schoolId: user.schoolId,
       userId: Number(user.userid),
       userName: user.name,
       email: user.email

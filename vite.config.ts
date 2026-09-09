@@ -34,6 +34,10 @@ export default ({ mode }: { mode: string }) => {
     server: {
       port: Number(VITE_PORT),
       proxy: {
+        '/device-tags': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
+        '/devices': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
+        '/schools': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
+        '/school-admins': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
         '/api': {
           target: VITE_API_PROXY_URL,
           changeOrigin: true

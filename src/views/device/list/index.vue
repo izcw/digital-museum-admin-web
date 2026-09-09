@@ -1,5 +1,5 @@
 <template>
-  <div class="device-list-page page-content art-full-height">
+  <div v-loading="devicesLoading" class="device-list-page page-content art-full-height">
     <section class="overview-grid">
       <div v-for="item in overviewItems" :key="item.label" class="overview-card">
         <div class="overview-icon" :class="item.className"><ArtSvgIcon :icon="item.icon" /></div>
@@ -20,6 +20,21 @@
             placeholder="搜索设备名称、编号或序列号"
             @keyup.enter="handleSearch"
           />
+          <ElSelect
+            v-model="searchForm.schoolId"
+            clearable
+            filterable
+            placeholder="全部学校"
+            :loading="schoolsLoading"
+          >
+            <ElOption label="未关联学校" :value="0" />
+            <ElOption
+              v-for="school in deviceSchools"
+              :key="school.id"
+              :label="school.name"
+              :value="school.id"
+            />
+          </ElSelect>
           <ElSelect v-model="searchForm.modelId" clearable placeholder="全部型号">
             <ElOption
               v-for="item in deviceModels"
@@ -28,13 +43,9 @@
               :value="item.id"
             />
           </ElSelect>
-          <ElTreeSelect
-            v-model="searchForm.groupId"
-            :data="groupOptions"
-            clearable
-            check-strictly
-            placeholder="全部分组"
-          />
+          <ElSelect v-model="searchForm.tagId" clearable filterable placeholder="全部标签">
+            <ElOption v-for="tag in deviceTags" :key="tag.id" :label="tag.name" :value="tag.id" />
+          </ElSelect>
           <ElSelect v-model="searchForm.onlineStatus" clearable placeholder="全部在线状态">
             <ElOption label="在线" value="online" />
             <ElOption label="离线" value="offline" />
@@ -50,7 +61,12 @@
     </ElCard>
 
     <div v-if="pagedDevices.length" class="device-grid">
-      <article v-for="item in pagedDevices" :key="item.id" class="device-card">
+      <article
+        v-for="item in pagedDevices"
+        :key="item.id"
+        class="device-card"
+        @contextmenu.prevent.stop="showDeviceMenu($event, item)"
+      >
         <div class="device-main">
           <div class="device-cover">
             <ElImage :src="getModelImage(item.modelId)" fit="contain" lazy>
@@ -77,7 +93,7 @@
                 </button>
                 <template #dropdown>
                   <ElDropdownMenu>
-                    <ElDropdownItem command="edit" :disabled="item.id >= 1_000_000_000">
+                    <ElDropdownItem command="edit">
                       <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
                     </ElDropdownItem>
                     <ElDropdownItem command="delete" divided :disabled="item.id >= 1_000_000_000">
@@ -91,6 +107,11 @@
             </div>
 
             <div class="device-meta">
+              <div
+                ><ArtSvgIcon icon="ri:school-line" /><span :title="item.schoolName">{{
+                  item.schoolName || '未关联学校'
+                }}</span></div
+              >
               <div>
                 <ArtSvgIcon icon="ri:barcode-line" />
                 <span :title="item.serialNumber">序列号：{{ item.serialNumber || '未录入' }}</span>
@@ -100,8 +121,8 @@
                 <span>{{ getModelName(item.modelId) }}</span>
               </div>
               <div>
-                <ArtSvgIcon icon="ri:folder-3-line" />
-                <span>{{ getGroupName(item.groupId) }}</span>
+                <ArtSvgIcon icon="ri:price-tag-3-line" />
+                <span>{{ item.tags?.map((tag) => tag.name).join('、') || '未设置标签' }}</span>
               </div>
               <div>
                 <ArtSvgIcon icon="ri:map-pin-line" />
@@ -128,9 +149,11 @@
         </div>
       </article>
     </div>
-    <ElCard v-else class="empty-card" shadow="never"
-      ><ElEmpty description="没有符合条件的设备"
-    /></ElCard>
+    <ElCard v-else class="empty-card" shadow="never">
+      <ElEmpty :description="devicesFailed ? '设备加载失败，请重试' : '没有符合条件的设备'">
+        <ElButton v-if="devicesFailed" type="primary" @click="refreshDevices">重新加载</ElButton>
+      </ElEmpty>
+    </ElCard>
 
     <div v-if="filteredDevices.length" class="pagination-wrap">
       <ElPagination
@@ -149,6 +172,8 @@
       width="720px"
       align-center
       :close-on-click-modal="false"
+      :close-on-press-escape="!saving"
+      :show-close="!saving"
       @closed="formRef?.resetFields()"
     >
       <ElForm ref="formRef" :model="form" :rules="rules" label-width="100px">
@@ -164,6 +189,7 @@
             ><ElFormItem label="设备编号" prop="deviceCode"
               ><ElInput
                 v-model="form.deviceCode"
+                :disabled="isRegisteredDevice"
                 maxlength="50"
                 placeholder="如 DEV-HALL-A-001" /></ElFormItem
           ></ElCol>
@@ -177,19 +203,61 @@
                   :value="item.id" /></ElSelect></ElFormItem
           ></ElCol>
           <ElCol :span="12"
-            ><ElFormItem label="所属分组"
-              ><ElTreeSelect
-                v-model="form.groupId"
-                :data="enabledGroupOptions"
+            ><ElFormItem label="设备标签">
+              <ElSelect
+                v-model="form.tagIds"
+                multiple
+                filterable
                 clearable
-                check-strictly
+                collapse-tags
+                collapse-tags-tooltip
                 class="w-full"
-                placeholder="请选择设备分组" /></ElFormItem
-          ></ElCol>
+                placeholder="请选择设备标签"
+                :loading="tagsLoading"
+                :disabled="tagsFailed"
+              >
+                <ElOption
+                  v-for="tag in deviceTags"
+                  :key="tag.id"
+                  :label="tag.name + (tag.status === 'disabled' ? '（已停用）' : '')"
+                  :value="tag.id"
+                  :disabled="tag.status === 'disabled' && !originalTagIds.includes(tag.id)"
+                />
+              </ElSelect>
+              <ElButton v-if="tagsFailed" link type="primary" @click="refreshTags"
+                >标签加载失败，点击重试</ElButton
+              >
+            </ElFormItem></ElCol
+          >
+          <ElCol :span="24">
+            <ElFormItem label="所属学校" prop="schoolId">
+              <ElSelect
+                v-model="form.schoolId"
+                filterable
+                clearable
+                class="w-full"
+                placeholder="请选择学校（非必填）"
+                :loading="schoolsLoading"
+                :disabled="schoolsLoading || schoolsFailed"
+              >
+                <ElOption
+                  v-for="school in deviceSchools"
+                  :key="school.id"
+                  :label="school.name + (school.status === 'disabled' ? '（已停用）' : '')"
+                  :value="school.id"
+                  :disabled="school.status === 'disabled' && school.id !== originalSchoolId"
+                />
+              </ElSelect>
+              <ElButton v-if="schoolsFailed" link type="primary" @click="refreshSchools"
+                >学校加载失败，点击重试</ElButton
+              >
+            </ElFormItem>
+          </ElCol>
           <ElCol :span="12"
             ><ElFormItem label="序列号"
               ><ElInput
                 v-model="form.serialNumber"
+                :disabled="isRegisteredDevice"
                 maxlength="80"
                 placeholder="请输入硬件序列号" /></ElFormItem
           ></ElCol>
@@ -197,6 +265,7 @@
             ><ElFormItem label="MAC 地址" prop="macAddress"
               ><ElInput
                 v-model="form.macAddress"
+                :disabled="isRegisteredDevice"
                 maxlength="17"
                 placeholder="如 A4:C3:F0:12:10:31" /></ElFormItem
           ></ElCol>
@@ -222,8 +291,14 @@
         </ElRow>
       </ElForm>
       <template #footer
-        ><ElButton @click="dialogVisible = false">取消</ElButton
-        ><ElButton type="primary" @click="handleSubmit">保存</ElButton></template
+        ><ElButton :disabled="saving" @click="dialogVisible = false">取消</ElButton
+        ><ElButton
+          type="primary"
+          :loading="saving"
+          :disabled="schoolsLoading || schoolsFailed || tagsLoading || tagsFailed"
+          @click="handleSubmit"
+          >保存</ElButton
+        ></template
       >
     </ElDialog>
 
@@ -240,11 +315,14 @@
           }}</ElTag>
         </div>
         <ElDescriptions :column="1" border>
+          <ElDescriptionsItem label="所属学校">{{
+            currentDevice.schoolName || '未关联学校'
+          }}</ElDescriptionsItem>
           <ElDescriptionsItem label="设备型号">{{
             getModelName(currentDevice.modelId)
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="所属分组">{{
-            getGroupName(currentDevice.groupId)
+          <ElDescriptionsItem label="设备标签">{{
+            currentDevice.tags?.map((tag) => tag.name).join('、') || '未设置标签'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem label="安装位置">{{
             currentDevice.location || '-'
@@ -264,15 +342,7 @@
           <ElDescriptionsItem label="系统版本">{{
             currentDevice.systemVersion || '-'
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="电源状态">
-            {{
-              currentDevice.id >= 1_000_000_000
-                ? '尚未上报'
-                : currentDevice.powerStatus === 'on'
-                  ? '运行中'
-                  : '已关机'
-            }}
-          </ElDescriptionsItem>
+          <ElDescriptionsItem label="电源状态"> 尚未上报 </ElDescriptionsItem>
           <ElDescriptionsItem label="最后心跳">{{
             currentDevice.lastHeartbeatAt
               ? formatDateTime(currentDevice.lastHeartbeatAt)
@@ -280,22 +350,26 @@
           }}</ElDescriptionsItem>
           <ElDescriptionsItem label="备注">{{ currentDevice.remark || '-' }}</ElDescriptionsItem>
         </ElDescriptions>
-        <div class="detail-actions-panel">
-          <ElButton
-            :type="currentDevice.powerStatus === 'on' ? 'danger' : 'success'"
-            :disabled="currentDevice.status === 'disabled' || currentDevice.id >= 1_000_000_000"
-            @click="handlePower(currentDevice)"
-          >
-            <ArtSvgIcon icon="ri:shut-down-line" class="mr-1" />
-            {{ currentDevice.powerStatus === 'on' ? '关机' : '开机' }}
-          </ElButton>
-        </div>
+        <DeviceSchoolDetails v-if="detailVisible" :device-id="currentDevice.id" />
       </template>
     </ElDrawer>
+    <Teleport to="body">
+      <ArtMenuRight
+        ref="deviceMenuRef"
+        :menu-items="deviceMenuItems"
+        :menu-width="180"
+        :border-radius="10"
+        @select="handleDeviceMenuSelect"
+      />
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
+  import DeviceSchoolDetails from './device-school-details.vue'
+  import ArtMenuRight, {
+    type MenuItemType
+  } from '@/components/core/others/art-menu-right/index.vue'
   import { Search } from '@element-plus/icons-vue'
   import {
     ElMessage,
@@ -304,29 +378,86 @@
     type FormRules,
     type TagProps
   } from 'element-plus'
+  import { schoolError } from '@/views/school/shared/school-data'
   import { formatDateTime } from '@/utils/date'
   import {
-    deviceGroups,
+    deviceTags,
+    loadDeviceTags,
     deviceModels,
     devices,
-    getGroupName,
     getModelImage,
     getModelName,
     removeDevice,
     saveDevice,
-    loadRegisteredDevices,
-    updateDevicePower,
+    loadDevices,
+    deviceSchools,
+    loadDeviceSchools,
     type Device,
     type DeviceMutation,
     type OnlineStatus
   } from '../shared/device-store'
 
   defineOptions({ name: 'DeviceList' })
-  onMounted(() => {
-    void loadRegisteredDevices().catch(() => ElMessage.error('加载注册终端失败'))
+  const devicesLoading = ref(false)
+  const devicesFailed = ref(false)
+  const schoolsLoading = ref(false)
+  const schoolsFailed = ref(false)
+  const saving = ref(false)
+  const originalTagIds = ref<number[]>([])
+  const tagsLoading = ref(false)
+  const tagsFailed = ref(false)
+  const refreshTags = async () => {
+    tagsLoading.value = true
+    tagsFailed.value = false
+    try {
+      await loadDeviceTags()
+    } catch (error) {
+      tagsFailed.value = true
+      ElMessage.error(schoolError(error, '加载标签失败'))
+    } finally {
+      tagsLoading.value = false
+    }
+  }
+  const originalSchoolId = ref<number | null>()
+  const refreshSchools = async () => {
+    schoolsLoading.value = true
+    schoolsFailed.value = false
+    try {
+      await loadDeviceSchools()
+    } catch (error) {
+      schoolsFailed.value = true
+      ElMessage.error(schoolError(error, '加载学校失败'))
+    } finally {
+      schoolsLoading.value = false
+    }
+  }
+  const refreshDevices = async () => {
+    devicesLoading.value = true
+    devicesFailed.value = false
+    try {
+      await loadDevices()
+      if (currentDevice.value)
+        currentDevice.value = devices.value.find((d) => d.id === currentDevice.value?.id)
+    } catch (error) {
+      devicesFailed.value = true
+      devices.value = []
+      ElMessage.error(schoolError(error, '加载设备失败，请重试'))
+    } finally {
+      devicesLoading.value = false
+    }
+  }
+  const refreshPage = () => {
+    void refreshDevices()
+    void refreshSchools()
+    void refreshTags()
+  }
+  onMounted(refreshPage)
+  let activatedOnce = false
+  onActivated(() => {
+    if (activatedOnce) refreshPage()
+    activatedOnce = true
   })
   type DeviceForm = Omit<DeviceMutation, 'modelId'> & { modelId?: number }
-  type TreeOption = { value: number; label: string; disabled?: boolean; children?: TreeOption[] }
 
   const ONLINE_CONFIG: Record<OnlineStatus, { label: string; type: TagProps['type'] }> = {
     online: { label: '在线', type: 'success' },
@@ -335,16 +466,18 @@
   }
   const searchForm = reactive<{
     keyword: string
+    schoolId?: number
     modelId?: number
-    groupId?: number
+    tagId?: number
     onlineStatus: '' | OnlineStatus
-  }>({ keyword: '', modelId: undefined, groupId: undefined, onlineStatus: '' })
+  }>({ keyword: '', schoolId: undefined, modelId: undefined, tagId: undefined, onlineStatus: '' })
   const appliedSearch = reactive({ ...searchForm })
   const pagination = reactive({ current: 1, size: 12 })
   const dialogVisible = ref(false)
   const detailVisible = ref(false)
   const dialogType = ref<'add' | 'edit'>('add')
   const editingId = ref<number>()
+  const isRegisteredDevice = computed(() => (editingId.value ?? 0) >= 1_000_000_000)
   const currentDevice = ref<Device>()
   const formRef = ref<FormInstance>()
   const createEmptyForm = (): DeviceForm => ({
@@ -352,7 +485,8 @@
     deviceName: '',
     serialNumber: '',
     modelId: undefined,
-    groupId: undefined,
+    tagIds: [],
+    schoolId: undefined,
     location: '',
     status: 'enabled',
     ipAddress: '',
@@ -369,39 +503,20 @@
   const enabledModels = computed(() =>
     deviceModels.value.filter((item) => item.status === 'enabled' || item.id === form.modelId)
   )
-  const buildGroupOptions = (enabledOnly = false): TreeOption[] => {
-    const rows = deviceGroups.value.filter(
-      (item) => !enabledOnly || item.status === 'enabled' || item.id === form.groupId
-    )
-    const build = (parentId?: number): TreeOption[] =>
-      rows
-        .filter((item) => item.parentId === parentId)
-        .sort((a, b) => a.sort - b.sort)
-        .map((item) => ({
-          value: item.id,
-          label: item.groupName,
-          disabled: item.status === 'disabled',
-          children: build(item.id)
-        }))
-    return build()
-  }
-  const groupOptions = computed(() => buildGroupOptions())
-  const enabledGroupOptions = computed(() => buildGroupOptions(true))
-  const descendantGroupIds = (groupId: number) =>
-    deviceGroups.value
-      .filter((item) => item.id === groupId || item.path.split('/').includes(String(groupId)))
-      .map((item) => item.id)
   const filteredDevices = computed(() => {
     const keyword = appliedSearch.keyword.trim().toLowerCase()
-    const groupIds = appliedSearch.groupId ? descendantGroupIds(appliedSearch.groupId) : []
     return devices.value.filter(
       (item) =>
         (!keyword ||
           `${item.deviceName} ${item.deviceCode} ${item.serialNumber}`
             .toLowerCase()
             .includes(keyword)) &&
+        (appliedSearch.schoolId === undefined ||
+          (appliedSearch.schoolId === 0
+            ? !item.schoolId
+            : item.schoolId === appliedSearch.schoolId)) &&
         (!appliedSearch.modelId || item.modelId === appliedSearch.modelId) &&
-        (!appliedSearch.groupId || (!!item.groupId && groupIds.includes(item.groupId))) &&
+        (!appliedSearch.tagId || item.tagIds?.includes(appliedSearch.tagId)) &&
         (!appliedSearch.onlineStatus || item.onlineStatus === appliedSearch.onlineStatus)
     )
   })
@@ -444,7 +559,15 @@
       { required: true, message: '请输入设备编号', trigger: 'blur' },
       { pattern: /^[A-Za-z0-9_-]+$/, message: '仅支持字母、数字、下划线和短横线', trigger: 'blur' }
     ],
-    modelId: [{ required: true, message: '请选择设备型号', trigger: 'change' }],
+    modelId: [
+      {
+        validator: (_rule, value, callback) => {
+          if (!isRegisteredDevice.value && !value) callback(new Error('请选择设备型号'))
+          else callback()
+        },
+        trigger: 'change'
+      }
+    ],
     macAddress: [
       {
         pattern: /^$|^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/,
@@ -461,14 +584,19 @@
   const handleReset = () => {
     Object.assign(searchForm, {
       keyword: '',
+      schoolId: undefined,
       modelId: undefined,
-      groupId: undefined,
+      tagId: undefined,
       onlineStatus: ''
     })
     handleSearch()
   }
 
   const openDialog = (type: 'add' | 'edit', row?: Device) => {
+    void refreshSchools()
+    originalSchoolId.value = row?.schoolId
+    originalTagIds.value = [...(row?.tagIds ?? [])]
+    void refreshTags()
     dialogType.value = type
     editingId.value = row?.id
     Object.assign(
@@ -478,8 +606,9 @@
             deviceCode: row.deviceCode,
             deviceName: row.deviceName,
             serialNumber: row.serialNumber,
-            modelId: row.modelId,
-            groupId: row.groupId,
+            modelId: row.modelId || undefined,
+            tagIds: [...(row.tagIds ?? [])],
+            schoolId: row.schoolId,
             location: row.location,
             status: row.status,
             ipAddress: row.ipAddress,
@@ -494,7 +623,17 @@
     nextTick(() => formRef.value?.clearValidate())
   }
   const handleSubmit = async () => {
-    if (!formRef.value || !(await formRef.value.validate()) || !form.modelId) return
+    if (
+      saving.value ||
+      tagsLoading.value ||
+      tagsFailed.value ||
+      schoolsLoading.value ||
+      schoolsFailed.value ||
+      !formRef.value ||
+      !(await formRef.value.validate().catch(() => false)) ||
+      (!isRegisteredDevice.value && !form.modelId)
+    )
+      return
     const duplicateCode = devices.value.some(
       (item) =>
         item.deviceCode.toLowerCase() === form.deviceCode.trim().toLowerCase() &&
@@ -507,39 +646,63 @@
         (item) => item.serialNumber === form.serialNumber.trim() && item.id !== editingId.value
       )
     if (duplicateSerial) return void ElMessage.warning('设备序列号已存在')
-    saveDevice(
-      {
-        ...form,
-        modelId: form.modelId,
-        deviceCode: form.deviceCode.trim(),
-        deviceName: form.deviceName.trim()
-      },
-      editingId.value
-    )
-    dialogVisible.value = false
-    ElMessage.success(dialogType.value === 'add' ? '设备新增成功' : '设备修改成功')
-  }
-  const handlePower = async (row: Device) => {
-    const nextStatus = row.powerStatus === 'on' ? 'off' : 'on'
-    const actionName = nextStatus === 'on' ? '开机' : '关机'
+    saving.value = true
     try {
-      await ElMessageBox.confirm(
-        `确定向设备“${row.deviceName}”发送${actionName}指令吗？`,
-        `${actionName}设备`,
-        {
-          confirmButtonText: `确定${actionName}`,
-          cancelButtonText: '取消',
-          type: nextStatus === 'on' ? 'info' : 'warning'
-        }
-      )
-      updateDevicePower(row.id, nextStatus)
-      ElMessage.success(`${actionName}指令已执行`)
+      const payload = isRegisteredDevice.value
+        ? {
+            deviceName: form.deviceName.trim(),
+            modelId: form.modelId,
+            tagIds: form.tagIds,
+            schoolId: form.schoolId,
+            location: form.location,
+            status: form.status,
+            remark: form.remark
+          }
+        : {
+            ...form,
+            modelId: form.modelId,
+            deviceCode: form.deviceCode.trim(),
+            deviceName: form.deviceName.trim()
+          }
+      await saveDevice(payload, editingId.value)
+      dialogVisible.value = false
+      ElMessage.success(dialogType.value === 'add' ? '设备新增成功' : '设备修改成功')
+      await refreshDevices()
     } catch (error) {
-      if (error !== 'cancel' && error !== 'close') throw error
+      ElMessage.error(schoolError(error))
+    } finally {
+      saving.value = false
     }
   }
+  const deviceMenuRef = ref<InstanceType<typeof ArtMenuRight>>()
+  const contextDeviceId = ref<number>()
+  const deviceMenuItems = computed<MenuItemType[]>(() => [
+    { key: 'detail', label: '查看详情', icon: 'ri:eye-line' },
+    { key: 'edit', label: '编辑设备', icon: 'ri:edit-2-line', showLine: true },
+    {
+      key: 'delete',
+      label: '删除设备',
+      icon: 'ri:delete-bin-4-line',
+      disabled: contextDeviceId.value === undefined || contextDeviceId.value >= 1_000_000_000
+    }
+  ])
+  const showDeviceMenu = async (event: MouseEvent, row: Device) => {
+    contextDeviceId.value = row.id
+    await nextTick()
+    deviceMenuRef.value?.show(event)
+  }
+  const hideDeviceMenu = () => deviceMenuRef.value?.hide()
+  const handleDeviceMenuSelect = (item: MenuItemType) => {
+    if (item.disabled) return
+    const row = devices.value.find((device) => device.id === contextDeviceId.value)
+    if (row) handleCommand(item.key, row)
+  }
+  watch(pagedDevices, hideDeviceMenu)
+  onDeactivated(hideDeviceMenu)
+  onBeforeUnmount(hideDeviceMenu)
 
   const handleCommand = (command: string, row: Device) => {
+    hideDeviceMenu()
     if (command === 'detail') {
       currentDevice.value = row
       detailVisible.value = true
@@ -548,14 +711,15 @@
     if (command === 'delete') handleDelete(row)
   }
   const handleDelete = async (row: Device) => {
+    if (row.id >= 1_000_000_000) return
     try {
       await ElMessageBox.confirm(`确定删除设备“${row.deviceName}”吗？`, '删除设备', {
         type: 'warning'
       })
-      removeDevice(row.id)
+      await removeDevice(row.id)
       ElMessage.success('设备删除成功')
     } catch (error) {
-      if (error !== 'cancel' && error !== 'close') throw error
+      if (error !== 'cancel' && error !== 'close') ElMessage.error(schoolError(error))
     }
   }
 </script>
@@ -638,11 +802,13 @@
   }
 
   .filter-row {
+    flex-wrap: wrap;
     justify-content: space-between;
   }
 
   .filter-fields {
     flex: 1;
+    flex-wrap: wrap;
   }
 
   .filter-fields > :first-child {

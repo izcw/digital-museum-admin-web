@@ -11,8 +11,6 @@ import { h } from 'vue'
 
 // 已规划但尚未上线的业务页面。真实组件存在时优先加载真实组件。
 const plannedPages = new Set([
-  '/school/list',
-  '/school/admin',
   '/school/stats',
   '/device/monitor',
   '/device/alert',
