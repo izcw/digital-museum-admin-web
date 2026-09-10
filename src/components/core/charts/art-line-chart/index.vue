@@ -13,7 +13,7 @@
   import { graphic, type EChartsOption } from '@/plugins/echarts'
   import { getCssVar, hexToRgba } from '@/utils/ui'
   import { useChartOps, useChartComponent } from '@/hooks/core/useChart'
-  import type { LineChartProps, LineDataItem } from '@/types/component/chart'
+  import type { LineChartProps, LineDataItem, LineValue } from '@/types/component/chart'
 
   defineOptions({ name: 'ArtLineChart' })
 
@@ -48,7 +48,7 @@
   // 动画状态管理
   const isAnimating = ref(false)
   const animationTimers = ref<number[]>([])
-  const animatedData = ref<number[] | LineDataItem[]>([])
+  const animatedData = ref<LineValue[] | LineDataItem[]>([])
 
   // 清理所有定时器
   const clearAnimationTimers = () => {
@@ -61,6 +61,7 @@
     return (
       Array.isArray(props.data) &&
       props.data.length > 0 &&
+      props.data[0] !== null &&
       typeof props.data[0] === 'object' &&
       'name' in props.data[0]
     )
@@ -71,20 +72,23 @@
     if (isMultipleData.value) {
       const multiData = props.data as LineDataItem[]
       return multiData.reduce((max, item) => {
-        if (item.data?.length) {
-          const itemMax = Math.max(...item.data)
+        const values = item.data?.filter((value): value is number => typeof value === 'number')
+        if (values?.length) {
+          const itemMax = Math.max(...values)
           return Math.max(max, itemMax)
         }
         return max
       }, 0)
     } else {
-      const singleData = props.data as number[]
-      return singleData?.length ? Math.max(...singleData) : 0
+      const singleData = (props.data as LineValue[]).filter(
+        (value): value is number => typeof value === 'number'
+      )
+      return singleData.length ? Math.max(...singleData) : 0
     }
   })
 
   // 初始化动画数据（优化：减少条件判断）
-  const initAnimationData = (): number[] | LineDataItem[] => {
+  const initAnimationData = (): LineValue[] | LineDataItem[] => {
     if (isMultipleData.value) {
       const multiData = props.data as LineDataItem[]
       return multiData.map((item) => ({
@@ -92,16 +96,16 @@
         data: Array(item.data.length).fill(0)
       }))
     }
-    const singleData = props.data as number[]
+    const singleData = props.data as LineValue[]
     return Array(singleData.length).fill(0)
   }
 
   // 复制真实数据（优化：使用结构化克隆）
-  const copyRealData = (): number[] | LineDataItem[] => {
+  const copyRealData = (): LineValue[] | LineDataItem[] => {
     if (isMultipleData.value) {
       return (props.data as LineDataItem[]).map((item) => ({ ...item, data: [...item.data] }))
     }
-    return [...(props.data as number[])]
+    return [...(props.data as LineValue[])]
   }
 
   // 获取颜色配置（优化：缓存主题色）
@@ -157,7 +161,7 @@
   // 创建系列配置
   const createSeriesItem = (config: {
     name?: string
-    data: number[]
+    data: LineValue[]
     color?: string
     smooth?: boolean
     symbol?: string
@@ -241,7 +245,7 @@
       })
     } else {
       // 单数据情况
-      const singleData = animatedData.value as number[]
+      const singleData = animatedData.value as LineValue[]
       const computedColor = getColor(props.colors[0])
       const areaStyle = generateSingleAreaStyle()
 
@@ -308,9 +312,9 @@
   // 空数据检查函数
   const checkIsEmpty = () => {
     // 检查单数据情况
-    if (Array.isArray(props.data) && typeof props.data[0] === 'number') {
-      const singleData = props.data as number[]
-      return !singleData.length || singleData.every((val) => val === 0)
+    if (Array.isArray(props.data) && (!props.data.length || typeof props.data[0] !== 'object')) {
+      const singleData = props.data as LineValue[]
+      return !singleData.length || singleData.every((val) => val === null || val === 0)
     }
 
     // 检查多数据情况
@@ -318,7 +322,9 @@
       const multiData = props.data as LineDataItem[]
       return (
         !multiData.length ||
-        multiData.every((item) => !item.data?.length || item.data.every((val) => val === 0))
+        multiData.every(
+          (item) => !item.data?.length || item.data.every((val) => val === null || val === 0)
+        )
       )
     }
 

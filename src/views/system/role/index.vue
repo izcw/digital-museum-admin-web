@@ -52,9 +52,9 @@
   import { fetchDeleteRole, fetchGetRoleList } from '@/api/system-manage'
   import { useTable } from '@/hooks/core/useTable'
   import { formatDateTime } from '@/utils/date'
-  import RoleEditDialog from './modules/role-edit-dialog.vue'
-  import RolePermissionDialog from './modules/role-permission-dialog.vue'
-  import RoleSearch from './modules/role-search.vue'
+  import RoleEditDialog from './components/role-edit-dialog.vue'
+  import RolePermissionDialog from './components/role-permission-dialog.vue'
+  import RoleSearch from './components/role-search.vue'
 
   defineOptions({ name: 'Role' })
 

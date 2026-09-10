@@ -7,12 +7,13 @@
       <header class="page-heading">
         <div>
           <div class="title-line"
-            ><h1>设备监控</h1><ElTag type="info" effect="plain">演示数据</ElTag></div
+            ><h1>设备监控</h1><ElTag type="info" effect="plain">设备遥测</ElTag></div
           >
           <p>了解设备运行状态，及时发现资源异常与连接问题。</p>
         </div>
         <span class="preview-note"
-          ><ArtSvgIcon icon="ri:information-line" />当前为界面预览，尚未接入实时监控</span
+          ><ArtSvgIcon icon="ri:information-line" />WebSocket 实时更新 · 客户端每 20 秒上报 ·
+          {{ refreshError || '显示最近一次设备上报' }}</span
         >
       </header>
 
@@ -36,7 +37,7 @@
       <ElCard shadow="never" class="monitor-card">
         <div class="section-heading"
           ><div><h2>运行状态</h2><p>按学校和标签查看设备，点击详情查看运行指标。</p></div
-          ><span class="muted">示例快照 · 09-09 10:30</span></div
+          ><span class="muted">{{ refreshedAt || '正在加载' }}</span></div
         >
         <ElForm class="filters" @submit.prevent="applySearch">
           <ElInput
@@ -128,13 +129,7 @@
           <ElTableColumn label="最后心跳" min-width="155"
             ><template #default="{ row }"
               ><span>{{ row.heartbeat }}</span
-              ><p class="muted">{{
-                row.state === 'online'
-                  ? '30 秒前'
-                  : row.state === 'offline'
-                    ? '已离线 25 分钟'
-                    : '尚未上报'
-              }}</p></template
+              ><p class="muted">{{ row.freshness }}</p></template
             ></ElTableColumn
           >
           <ElTableColumn label="操作" width="100" fixed="right"
@@ -167,7 +162,7 @@
             ><h2>{{ currentDevice.name }}</h2
             ><p class="muted">{{ currentDevice.code }}</p></div
           ><ElTag type="info" effect="plain">{{
-            currentDevice.realDevice ? '待接入监控' : '演示数据'
+            currentDevice.realDevice ? '设备遥测' : '演示数据'
           }}</ElTag></div
         >
         <div class="freshness-bar"
@@ -180,104 +175,39 @@
         <ElAlert
           v-if="currentDevice.state !== 'online'"
           :title="
-            currentDevice.realDevice
-              ? '已定位该设备，监控数据尚未接入'
-              : currentDevice.state === 'offline'
-                ? '设备已离线，以下为最后一次上报的信息'
-                : '设备尚未上报，等待首次连接'
+            currentDevice.state === 'offline'
+              ? '设备已离线，以下为最后一次上报的信息'
+              : '设备尚未上报，等待首次连接'
           "
           type="info"
           :closable="false"
           show-icon
           class="detail-alert"
         />
-        <MuseumMonitorDetails :device="currentDevice" v-slot="{ navigate }">
-          <MonitorAlertOverview :device="currentDevice" @navigate="navigate" />
-          <DeviceHealth :device="currentDevice">
-            <template #machine
-              ><MachineStatus :device="currentDevice" @navigate="navigate"
-            /></template>
-          </DeviceHealth>
-          <ElRow :gutter="10" class="detail-columns">
-            <ElCol :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
-              <ElCard shadow="never" class="detail-section"
-                ><h3>基本信息</h3><p class="detail-subtitle">学校归属、连接状态与设备标识。</p>
-                <ElRow :gutter="10" class="resource-grid">
-                  <ElCol
-                    v-for="item in [
-                      { label: '所属学校', value: currentDevice.school },
-                      {
-                        label: '连接状态',
-                        value: currentDevice.realDevice ? '未知' : stateLabels[currentDevice.state]
-                      },
-                      { label: '客户端版本', value: currentDevice.version },
-                      { label: 'IP 地址', value: currentDevice.ip },
-                      { label: '运行时长', value: currentDevice.uptime },
-                      { label: '电源状态', value: currentDevice.powerState },
-                      { label: '离线原因', value: currentDevice.offlineReason },
-                      { label: '安装位置', value: currentDevice.location },
-                      { label: '最后心跳', value: currentDevice.heartbeat }
-                    ]"
-                    :key="item.label"
-                    :xs="24"
-                    :sm="12"
-                    :md="12"
-                    :lg="12"
-                    :xl="12"
-                  >
-                    <div class="detail-info-cell"
-                      ><span>{{ item.label }}</span
-                      ><strong>{{ item.value || '—' }}</strong></div
-                    >
-                  </ElCol>
-                  <ElCol :xs="24" :sm="12" :md="12" :lg="12" :xl="12"
-                    ><div class="detail-info-cell"
-                      ><span>设备标签</span
-                      ><div class="tag-list"
-                        ><ElTag v-for="tag in currentDevice.tags" :key="tag" type="info">{{
-                          tag
-                        }}</ElTag
-                        ><span v-if="!currentDevice.tags.length">暂无标签</span></div
-                      ></div
-                    ></ElCol
-                  >
-                </ElRow></ElCard
-              >
-            </ElCol>
-            <ElCol :xs="24" :sm="24" :md="12" :lg="12" :xl="12" class="detail-metrics-column">
-              <ElCard shadow="never" class="detail-section"
-                ><h3>近 24 小时连接记录 <small>示例</small></h3
-                ><div v-if="currentDevice.state === 'unknown'" class="empty-history"
-                  >暂无连接记录</div
-                ><template v-else
-                  ><div class="availability" aria-label="24小时连接记录，绿色在线，灰色离线"
-                    ><span
-                      v-for="hour in 24"
-                      :key="hour"
-                      :class="{ gap: currentDevice.state === 'offline' && hour === 24 }" /></div
-                  ><div class="history-scale"><span>昨天 10:30</span><span>今天 10:30</span></div
-                  ><p class="history-legend"><i />在线 <i class="gap" />离线</p>
-                  <h3>最近状态趋势</h3
-                  ><p class="detail-subtitle">示例事件计数 · 每个时间点的记录数量</p>
-                  <ArtLineChart
-                    :data="recentStateSeries"
-                    :x-axis-data="['08:00', '09:00', '10:00', '10:30']"
-                    :smooth="false"
-                    :show-legend="true"
-                    height="240px"
-                  />
-                  <p class="muted"
-                    >最近状态：{{
-                      currentDevice.issue ||
-                      (currentDevice.state === 'offline'
-                        ? '心跳超时，设备连接中断'
-                        : '心跳上报成功')
-                    }}</p
-                  ></template
-                ></ElCard
-              >
-            </ElCol>
-          </ElRow>
+        <MuseumMonitorDetails :device="currentDevice">
+          <template #default="{ navigate }">
+            <ElRow :gutter="10" class="detail-card-grid">
+              <ElCol :span="24"><MonitorAlertOverview @navigate="navigate" /></ElCol>
+              <ElCol v-if="currentDevice.realDevice" :span="24"><HeartbeatStatus /></ElCol>
+              <ElCol :span="24">
+                <DeviceHealth>
+                  <template #machine><MachineStatus @navigate="navigate" /></template>
+                </DeviceHealth>
+              </ElCol>
+              <ElCol :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+                <BasicInfoCard />
+              </ElCol>
+              <ElCol :xs="24" :sm="24" :md="12" :lg="12" :xl="12">
+                <ConnectionRecordCard />
+              </ElCol>
+            </ElRow>
+          </template>
+          <template v-if="currentDevice.realDevice" #hardware>
+            <ElRow :gutter="10" class="detail-card-grid">
+              <ElCol :span="24"><LiveTelemetry mode="resources" /></ElCol>
+              <ElCol :span="24"><LiveTelemetry mode="trend" /></ElCol>
+            </ElRow>
+          </template>
         </MuseumMonitorDetails>
       </div>
       <ElEmpty v-else description="设备参数无效或示例设备不存在，请返回设备监控重新选择" />
@@ -286,184 +216,35 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
+  import { computed, defineComponent, h, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
+  import { storeToRefs } from 'pinia'
   import { useRoute, useRouter } from 'vue-router'
-  import ArtLineChart from '@/components/core/charts/art-line-chart/index.vue'
-  import DeviceHealth from './device-health.vue'
-  import MachineStatus from './machine-status.vue'
-  import MonitorAlertOverview from './monitor-alert-overview.vue'
+  import {
+    useDeviceMonitorStore,
+    type DeviceState,
+    type MonitorDevice
+  } from '@/store/modules/device-monitor'
+  import DeviceHealth from './components/device-health.vue'
+  import MachineStatus from './components/machine-status.vue'
+  import MonitorAlertOverview from './components/monitor-alert-overview.vue'
+  import HeartbeatStatus from './components/heartbeat-status.vue'
+  import BasicInfoCard from './components/basic-info-card.vue'
+  import ConnectionRecordCard from './components/connection-record-card.vue'
   import { getHealth } from './health-score'
-  import { devices } from '../shared/device-store'
+  import { devices, loadDevice, loadDevices, type Device } from '../shared/device-store'
+  import { subscribeDeviceRealtime } from '../shared/device-realtime'
+  import LiveTelemetry from './components/live-telemetry.vue'
+  import { metricValue, usedPercent } from './telemetry-data'
   import { ElProgress } from 'element-plus'
-  import MuseumMonitorDetails from './museum-monitor-details.vue'
+  import MuseumMonitorDetails from './components/museum-monitor-details.vue'
 
   defineOptions({ name: 'DeviceMonitor' })
-  type DeviceState = 'online' | 'offline' | 'unknown'
   type StateFilter = 'all' | DeviceState | 'attention'
-  interface MonitorDevice {
-    realDevice?: boolean
-    id: number
-    name: string
-    code: string
-    school: string
-    state: DeviceState
-    tags: string[]
-    cpu: number | null
-    memory: number | null
-    disk: number | null
-    heartbeat: string
-    ip: string
-    version: string
-    uptime: string
-    location: string
-    issue: string
-    powerState: string
-    offlineReason: string
-    collectedAt: string
-    freshness: string
-  }
-  const recentStateSeries = computed(() => [
-    { name: '客户端启动', data: [1, 0, 0, 0] },
-    { name: '心跳正常', data: [1, 1, 1, currentDevice.value?.state === 'online' ? 1 : 0] },
-    { name: '连接中断', data: [0, 0, 0, currentDevice.value?.state === 'offline' ? 1 : 0] },
-    {
-      name: '资源告警',
-      data: [0, 0, 0, currentDevice.value?.issue && currentDevice.value?.state === 'online' ? 1 : 0]
-    }
-  ])
   const stateLabels: Record<DeviceState, string> = {
     online: '在线',
     offline: '离线',
     unknown: '未激活'
   }
-  const demoDevices: MonitorDevice[] = [
-    {
-      id: 1,
-      name: '一楼展厅互动终端',
-      code: 'DEMO-001',
-      school: '示例学校 · 第一小学',
-      state: 'online',
-      tags: ['展厅设备'],
-      cpu: 24,
-      memory: 46,
-      disk: 38,
-      heartbeat: '09-09 10:29:30',
-      ip: '192.0.2.11',
-      version: 'v0.0.4',
-      uptime: '2 天 6 小时',
-      location: '一楼展厅入口',
-      issue: '',
-      powerState: '已开机',
-      offlineReason: '—',
-      collectedAt: '09-09 10:30:00（示例）',
-      freshness: '刚刚'
-    },
-    {
-      id: 2,
-      name: '科学教室教学终端',
-      code: 'DEMO-002',
-      school: '示例学校 · 第一小学',
-      state: 'online',
-      tags: ['教学设备', '重点监控'],
-      cpu: 88,
-      memory: 72,
-      disk: 41,
-      heartbeat: '09-09 10:29:30',
-      ip: '192.0.2.12',
-      version: 'v0.0.4',
-      uptime: '6 小时 30 分钟',
-      location: '二楼科学教室',
-      issue: 'CPU 占用偏高',
-      powerState: '已开机',
-      offlineReason: '—',
-      collectedAt: '09-09 10:30:00（示例）',
-      freshness: '刚刚'
-    },
-    {
-      id: 3,
-      name: '图书馆导览终端',
-      code: 'DEMO-003',
-      school: '示例学校 · 实验小学',
-      state: 'online',
-      tags: ['展厅设备'],
-      cpu: 18,
-      memory: 39,
-      disk: 92,
-      heartbeat: '09-09 10:29:30',
-      ip: '192.0.2.13',
-      version: 'v0.0.4',
-      uptime: '1 天 3 小时',
-      location: '图书馆服务台',
-      issue: '磁盘空间不足',
-      powerState: '已开机',
-      offlineReason: '—',
-      collectedAt: '09-09 10:30:00（示例）',
-      freshness: '刚刚'
-    },
-    {
-      id: 4,
-      name: '文化长廊展示终端',
-      code: 'DEMO-004',
-      school: '示例学校 · 实验小学',
-      state: 'offline',
-      tags: ['重点监控'],
-      cpu: 32,
-      memory: 48,
-      disk: 57,
-      heartbeat: '09-09 10:05:00',
-      ip: '192.0.2.14',
-      version: 'v0.0.3',
-      uptime: '3 天 2 小时',
-      location: '一楼文化长廊',
-      issue: '',
-      powerState: '已关机',
-      offlineReason: '设备主动关机',
-      collectedAt: '09-09 10:05:00（示例）',
-      freshness: '25 分钟前'
-    },
-    {
-      id: 5,
-      name: '创新空间试点终端',
-      code: 'DEMO-005',
-      school: '示例学校 · 第二小学',
-      state: 'online',
-      tags: ['试点设备'],
-      cpu: 35,
-      memory: 52,
-      disk: 29,
-      heartbeat: '09-09 10:29:30',
-      ip: '192.0.2.15',
-      version: 'v0.0.4',
-      uptime: '4 小时 12 分钟',
-      location: '三楼创新空间',
-      issue: '',
-      powerState: '已开机',
-      offlineReason: '—',
-      collectedAt: '09-09 10:30:00（示例）',
-      freshness: '刚刚'
-    },
-    {
-      id: 6,
-      name: '备用互动终端',
-      code: 'DEMO-006',
-      school: '未关联学校',
-      state: 'unknown',
-      tags: ['备用设备'],
-      cpu: null,
-      memory: null,
-      disk: null,
-      heartbeat: '—',
-      ip: '—',
-      version: '—',
-      uptime: '—',
-      location: '待部署',
-      issue: '',
-      powerState: '待上报',
-      offlineReason: '尚未首次连接',
-      collectedAt: '—',
-      freshness: '暂无数据'
-    }
-  ]
   const MetricBar = defineComponent({
     props: {
       value: { type: Number, default: null },
@@ -488,7 +269,7 @@
           ])
         : h('span', { class: 'muted' }, '—')
   })
-  const cards: {
+  const cardDefinitions: {
     key: StateFilter
     label: string
     count: number
@@ -500,7 +281,7 @@
       key: 'all',
       label: '全部设备',
       count: 6,
-      hint: '覆盖 3 所示例学校',
+      hint: '已登记设备',
       icon: 'ri:device-line',
       tone: 'primary'
     },
@@ -516,7 +297,7 @@
       key: 'offline',
       label: '离线设备',
       count: 1,
-      hint: '超过 2 分钟无心跳',
+      hint: '超过 60 秒无上报',
       icon: 'ri:wifi-off-line',
       tone: 'neutral'
     },
@@ -537,69 +318,184 @@
       tone: 'neutral'
     }
   ]
-  const schools = [...new Set(demoDevices.map((device) => device.school))]
-  const tags = [...new Set(demoDevices.flatMap((device) => device.tags))]
+  function toMonitor(device: Device): MonitorDevice {
+    const snapshot = device.telemetry
+    const oneDecimal = (value: number | null) =>
+      value === null ? null : Math.round(value * 10) / 10
+    const cpu = oneDecimal(metricValue(snapshot, 'cpuPercent'))
+    const memory = usedPercent(snapshot, 'memory'),
+      disk = usedPercent(snapshot, 'disk')
+    const state = device.onlineStatus
+    return {
+      id: device.id,
+      realDevice: true,
+      telemetry: snapshot,
+      name: device.deviceName,
+      code: device.deviceCode,
+      school: device.schoolName || '未分配学校',
+      tags: device.tags?.map((tag) => tag.name) ?? [],
+      state,
+      cpu,
+      memory,
+      disk,
+      heartbeat: snapshot ? new Date(snapshot.receivedAt).toLocaleString() : '—',
+      ip: device.ipAddress || '—',
+      version: device.clientVersion,
+      uptime:
+        metricValue(snapshot, 'systemUptimeSeconds') === null
+          ? '—'
+          : `${(metricValue(snapshot, 'systemUptimeSeconds')! / 3600).toFixed(1)} 小时`,
+      location: device.location,
+      issue:
+        snapshot?.report.application.renderer === 'crashed'
+          ? '应用崩溃'
+          : snapshot?.report.application.renderer === 'unresponsive'
+            ? '应用无响应'
+            : Math.max(cpu ?? 0, memory ?? 0, disk ?? 0) >= 90
+              ? '资源占用偏高'
+              : '',
+      powerState: snapshot?.report.components?.power === 'on' ? '已开机' : '未知',
+      offlineReason: state === 'offline' ? '连接中断，无法判断是否关机' : '—',
+      collectedAt: snapshot ? new Date(snapshot.report.sampledAt).toLocaleString() : '—',
+      freshness: !snapshot
+        ? '暂无数据'
+        : device.freshness === 'stale'
+          ? '历史数据（超过 60 秒未上报）'
+          : device.freshness === 'delayed'
+            ? '上报延迟（超过 40 秒）'
+            : device.freshness === 'fresh'
+              ? '正常'
+              : '状态未知'
+    }
+  }
+  const monitorDevices = computed(() => devices.value.map(toMonitor))
+  const cards = computed(() =>
+    cardDefinitions.map((card) => ({
+      ...card,
+      count: monitorDevices.value.filter(
+        (device) =>
+          card.key === 'all' ||
+          (card.key === 'attention'
+            ? device.state === 'online' && !!device.issue
+            : device.state === card.key)
+      ).length
+    }))
+  )
+  const schools = computed(() => [...new Set(monitorDevices.value.map((device) => device.school))])
+  const tags = computed(() => [...new Set(monitorDevices.value.flatMap((device) => device.tags))])
+  const refreshedAt = ref(''),
+    refreshError = ref('')
+  const route = useRoute()
+  const router = useRouter()
+  const isDetailPage = computed(() => route.name === 'DeviceMonitorDetail')
+  let loading = false
+  async function refresh() {
+    if (loading || document.hidden) return
+    loading = true
+    try {
+      await loadDevices()
+      refreshedAt.value = new Date().toLocaleTimeString()
+      refreshError.value = ''
+    } catch {
+      refreshError.value = '刷新失败，数据可能已过期'
+    } finally {
+      loading = false
+    }
+  }
+  onMounted(() => {
+    void refresh()
+  })
+  const unsubscribeRealtime = subscribeDeviceRealtime((event) => {
+    if (event.type === 'realtime.ready') void refresh()
+    else if (event.type === 'realtime.disconnected')
+      refreshError.value = '实时连接已断开，正在自动重连'
+    else queueRealtimeDevice(event.deviceId)
+  })
+  const pendingRealtimeIds = new Set<number>()
+  let realtimeFlushTimer: ReturnType<typeof setTimeout> | undefined
+  function queueRealtimeDevice(id: number) {
+    if (isDetailPage.value && Number(route.query.deviceId) !== id) return
+    pendingRealtimeIds.add(id)
+    clearTimeout(realtimeFlushTimer)
+    realtimeFlushTimer = setTimeout(() => void flushRealtimeDevices(), 150)
+  }
+  async function flushRealtimeDevices() {
+    const ids = [...pendingRealtimeIds]
+    pendingRealtimeIds.clear()
+    if (!ids.length) return
+    try {
+      if (ids.length > 4) await loadDevices()
+      else {
+        const results = await Promise.allSettled(ids.map((id) => loadDevice(id)))
+        if (results.some((result) => result.status === 'rejected')) await loadDevices()
+      }
+      refreshedAt.value = new Date().toLocaleTimeString()
+      refreshError.value = ''
+    } catch {
+      refreshError.value = '实时更新失败，保留上次数据'
+    }
+  }
+  onUnmounted(() => {
+    clearTimeout(realtimeFlushTimer)
+    unsubscribeRealtime()
+  })
   const draft = reactive({ keyword: '', school: '', tag: '' })
   const applied = reactive({ ...draft })
   const activeState = ref<StateFilter>('all')
   const page = ref(1)
-  const currentDevice = ref<MonitorDevice>()
-  const route = useRoute()
-  const router = useRouter()
-  const isDetailPage = computed(() => route.name === 'DeviceMonitorDetail')
+  const monitorStore = useDeviceMonitorStore()
+  const { currentDevice } = storeToRefs(monitorStore)
   watch(
     () => [
       route.path,
       route.query.deviceId,
       route.query.deviceName,
       route.query.deviceCode,
-      route.query.source
+      devices.value
     ],
     () => {
       if (route.name !== 'DeviceMonitorDetail' && route.name !== 'DeviceMonitor') return
-      currentDevice.value = undefined
       const id = Number(route.query.deviceId)
-      if (!Number.isSafeInteger(id) || id <= 0) return
+      if (!Number.isSafeInteger(id) || id <= 0) {
+        monitorStore.setCurrentDevice()
+        return
+      }
       if (route.name === 'DeviceMonitor') {
         void router.replace({ name: 'DeviceMonitorDetail', query: route.query })
         return
       }
-      if (route.query.source === 'demo') {
-        currentDevice.value = demoDevices.find((item) => item.id === id)
+      const device = devices.value.find((item) => item.id === id)
+      if (device) {
+        monitorStore.setCurrentDevice(toMonitor(device))
         return
       }
-      const device = devices.value.find((item) => item.id === id)
-      currentDevice.value = {
+      monitorStore.setCurrentDevice({
         id,
         realDevice: true,
-        name:
-          device?.deviceName ||
-          (typeof route.query.deviceName === 'string' ? route.query.deviceName : `设备 ${id}`),
-        code:
-          device?.deviceCode ||
-          (typeof route.query.deviceCode === 'string' ? route.query.deviceCode : '—'),
-        school: device?.schoolName || '—',
-        tags: device?.tags?.map((tag) => tag.name) || [],
+        name: typeof route.query.deviceName === 'string' ? route.query.deviceName : `设备 ${id}`,
+        code: typeof route.query.deviceCode === 'string' ? route.query.deviceCode : '—',
+        school: '—',
+        tags: [],
         state: 'unknown',
         cpu: null,
         memory: null,
         disk: null,
         heartbeat: '—',
-        ip: device?.ipAddress || '—',
-        version: device?.clientVersion || '—',
+        ip: '—',
+        version: '—',
         uptime: '—',
-        location: device?.location || '—',
+        location: '—',
         issue: '',
         powerState: '待上报',
         offlineReason: '待设备上报',
         collectedAt: '—',
         freshness: '暂无数据'
-      }
+      })
     },
     { immediate: true }
   )
   const filteredDevices = computed(() =>
-    demoDevices.filter(
+    monitorDevices.value.filter(
       (device) =>
         (activeState.value === 'all' ||
           (activeState.value === 'attention'
@@ -631,9 +527,10 @@
   function openDetails(device: MonitorDevice) {
     void router.push({
       name: 'DeviceMonitorDetail',
-      query: { deviceId: String(device.id), source: 'demo' }
+      query: { deviceId: String(device.id), source: 'registered' }
     })
   }
+  onUnmounted(() => monitorStore.clear())
 </script>
 
 <style scoped lang="scss">
@@ -654,13 +551,10 @@
     border-radius: 12px;
   }
 
-  .detail-columns {
+  .detail-card-grid {
     row-gap: 10px;
     align-items: start;
-  }
-
-  .detail-metrics-column {
-    min-width: 0;
+    margin-bottom: 10px;
   }
 
   .monitor-page {

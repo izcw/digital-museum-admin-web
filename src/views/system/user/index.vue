@@ -41,8 +41,8 @@
     fetchUpdateUser
   } from '@/api/system-manage'
   import { formatDateTime } from '@/utils/date'
-  import UserDialog from './modules/user-dialog.vue'
-  import UserSearch from './modules/user-search.vue'
+  import UserDialog from './components/user-dialog.vue'
+  import UserSearch from './components/user-search.vue'
 
   defineOptions({ name: 'User' })
 

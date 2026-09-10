@@ -53,8 +53,8 @@
     type School,
     type SearchParams
   } from '../shared/school-data'
-  import EditDialog from './modules/edit-dialog.vue'
-  import DetailDrawer from './modules/detail-drawer.vue'
+  import EditDialog from './components/edit-dialog.vue'
+  import DetailDrawer from './components/detail-drawer.vue'
 
   defineOptions({ name: 'SchoolList' })
   const userStore = useUserStore()

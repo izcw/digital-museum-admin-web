@@ -39,8 +39,8 @@
     fetchGetLoginLog,
     fetchGetLoginLogList
   } from '@/api/system-manage'
-  import LogDetailDrawer from './modules/log-detail-drawer.vue'
-  import LogSearch from './modules/log-search.vue'
+  import LogDetailDrawer from './components/log-detail-drawer.vue'
+  import LogSearch from './components/log-search.vue'
 
   defineOptions({ name: 'LoginLog' })
   type LogItem = Api.SystemManage.LoginLogItem

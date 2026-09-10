@@ -47,7 +47,7 @@
     type SchoolAdmin,
     type SearchParams
   } from '../shared/school-data'
-  import EditDialog from './modules/edit-dialog.vue'
+  import EditDialog from './components/edit-dialog.vue'
 
   defineOptions({ name: 'SchoolAdmin' })
   const userStore = useUserStore()

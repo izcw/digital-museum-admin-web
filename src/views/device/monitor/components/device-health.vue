@@ -23,20 +23,26 @@
             <ElCol :xs="24" :sm="16" :md="16" :lg="16" :xl="16"
               ><ElDescriptions :column="1" border
                 ><ElDescriptionsItem label="评分来源">{{
-                  device.realDevice ? '待接入设备采集' : '前端演示规则'
+                  device.realDevice ? '设备最新遥测快照' : '前端演示规则'
                 }}</ElDescriptionsItem
                 ><ElDescriptionsItem label="资源异常">{{
                   health.issues === null ? '待评估' : `${health.issues} 项`
                 }}</ElDescriptionsItem
                 ><ElDescriptionsItem label="采集时间">{{
-                  health.score === null ? '—' : '09-09 10:29:30（示例）'
+                  health.score === null
+                    ? '—'
+                    : device.realDevice
+                      ? device.collectedAt || '最新一次采集'
+                      : '09-09 10:29:30（示例）'
                 }}</ElDescriptionsItem></ElDescriptions
               ><p class="score-note">{{
                 health.score === null
                   ? '离线、未激活或缺少监控数据时不生成当前评分。'
                   : health.issues
                     ? '建议查看资源占用中的异常指标，检查高负载或磁盘空间。'
-                    : '当前示例资源占用正常，可继续关注运行趋势。'
+                    : device.realDevice
+                      ? '当前资源占用正常，可继续关注运行趋势。'
+                      : '当前示例资源占用正常，可继续关注运行趋势。'
               }}</p></ElCol
             >
           </ElRow>
@@ -99,19 +105,13 @@
 </template>
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { getHealth, type HealthDevice } from './health-score'
-  const props = defineProps<{
-    device: HealthDevice & {
-      name: string
-      school: string
-      version: string
-      uptime: string
-      ip: string
-      location: string
-    }
-  }>()
-  const health = computed(() => getHealth(props.device))
-  const hasSnapshot = computed(() => !props.device.realDevice && props.device.state !== 'unknown')
+  import { storeToRefs } from 'pinia'
+  import { useDeviceMonitorStore } from '@/store/modules/device-monitor'
+  import { getHealth, type HealthDevice } from '../health-score'
+  const { currentDevice } = storeToRefs(useDeviceMonitorStore())
+  const device = computed(() => currentDevice.value! as HealthDevice & { collectedAt?: string })
+  const health = computed(() => getHealth(device.value))
+  const hasSnapshot = computed(() => !device.value.realDevice && device.value.state !== 'unknown')
   const inspections = [
     {
       title: '耗材与奖励库存',

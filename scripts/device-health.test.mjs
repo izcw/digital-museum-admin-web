@@ -11,13 +11,9 @@ test('health score applies threshold deductions once per metric', () => {
   assert.equal(getHealth({ ...base, cpu: 90, memory: 90, disk: 90 }).score, 25)
   assert.equal(getHealth({ ...base, cpu: 90, memory: 90, disk: 90 }).type, 'danger')
 })
-test('unreported, offline and inactive devices cannot receive a current score', () => {
-  for (const patch of [
-    { state: 'offline' },
-    { state: 'unknown' },
-    { cpu: null },
-    { realDevice: true }
-  ]) {
+test('real telemetry can be scored while unavailable devices cannot', () => {
+  assert.equal(getHealth({ ...base, realDevice: true }).score, 100)
+  for (const patch of [{ state: 'offline' }, { state: 'unknown' }, { cpu: null }]) {
     assert.equal(getHealth({ ...base, ...patch }).score, null)
     assert.equal(getHealth({ ...base, ...patch }).issues, null)
   }

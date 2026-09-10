@@ -29,13 +29,13 @@
 </template>
 
 <script setup lang="ts">
-  import CardList from './modules/card-list.vue'
-  import ActiveUser from './modules/active-user.vue'
-  import SalesOverview from './modules/sales-overview.vue'
-  import NewUser from './modules/new-user.vue'
-  import Dynamic from './modules/dynamic-stats.vue'
-  import TodoList from './modules/todo-list.vue'
-  import AboutProject from './modules/about-project.vue'
+  import CardList from './components/card-list.vue'
+  import ActiveUser from './components/active-user.vue'
+  import SalesOverview from './components/sales-overview.vue'
+  import NewUser from './components/new-user.vue'
+  import Dynamic from './components/dynamic-stats.vue'
+  import TodoList from './components/todo-list.vue'
+  import AboutProject from './components/about-project.vue'
 
   defineOptions({ name: 'Console' })
 </script>

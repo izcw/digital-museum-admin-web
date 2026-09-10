@@ -3,8 +3,8 @@
     <template #header
       ><div class="heading"
         ><div><h3>一体机状态</h3><p>上方触控屏 · 左侧 3D 打印 · 右侧扭蛋奖励出货</p></div
-        ><ElTag :type="poweredOn ? 'success' : 'info'">{{
-          poweredOn ? '运行中 · 演示状态' : offlineLabel
+        ><ElTag :type="device.state === 'online' ? 'success' : 'info'">{{
+          statusLabel
         }}</ElTag></div
       ></template
     >
@@ -14,16 +14,18 @@
           <div class="cabinet">
             <div class="brand">小小博物館 <span>移动文化智慧课堂</span></div>
             <button class="screen" @click="emit('navigate', 'hardware')">
-              <div v-if="!poweredOn" class="screen-offline"
-                ><ArtSvgIcon icon="ri:shut-down-line" /><strong>{{ offlineLabel }}</strong
+              <div v-if="!screenAvailable" class="screen-offline"
+                ><ArtSvgIcon icon="ri:shut-down-line" /><strong>{{ statusLabel }}</strong
                 ><small>{{
                   device.state === 'offline' ? '设备当前处于离线状态' : '等待设备首次连接并上报'
                 }}</small></div
               >
               <template v-else>
                 <div class="screen-top"
-                  ><span>55 英寸 · 16:9</span
-                  ><ElTag size="small" type="info">{{ value('示例快照') }}</ElTag></div
+                  ><span>{{ device.realDevice ? '设备资源遥测' : '55 英寸 · 16:9' }}</span
+                  ><ElTag size="small" type="info">{{
+                    device.realDevice ? '最新遥测' : value('示例快照')
+                  }}</ElTag></div
                 >
                 <ElRow :gutter="10" class="screen-rings">
                   <ElCol v-for="metric in metrics" :key="metric.name" :span="6">
@@ -41,7 +43,9 @@
                       >
                         <template #default
                           ><strong>{{
-                            snapshot && metric.value !== null ? `${metric.value}%` : '待上报'
+                            snapshot && metric.value !== null
+                              ? `${metric.value.toFixed(1)}%`
+                              : '待上报'
                           }}</strong></template
                         >
                       </ElProgress>
@@ -69,25 +73,27 @@
                 ><button class="printer" @click="emit('navigate', 'printing')"
                   ><span class="module-label">3D 打印机</span
                   ><ElTag size="small" :type="poweredOn ? 'primary' : 'info'">{{
-                    poweredOn ? '打印中' : offlineLabel
+                    moduleAvailable ? '打印中' : moduleStatusLabel
                   }}</ElTag>
                   <small>{{
-                    poweredOn ? '当前任务进度 64% · 剩余 28 分钟' : '暂无实时打印状态'
+                    moduleAvailable ? '当前任务进度 64% · 剩余 28 分钟' : '暂无实时打印状态'
                   }}</small>
-                  <ElTag size="small" :type="poweredOn ? 'primary' : 'info'">{{
-                    poweredOn ? '耗材剩余 700 g' : '数量待上报'
+                  <ElTag size="small" :type="moduleAvailable ? 'primary' : 'info'">{{
+                    moduleAvailable ? '耗材剩余 700 g' : '数量待上报'
                   }}</ElTag
-                  ><small>{{ poweredOn ? '在用 620 g · 备用 80 g' : '—' }}</small
-                  ><small>{{ poweredOn ? '今日完成 6 件' : '—' }}</small></button
+                  ><small>{{ moduleAvailable ? '在用 620 g · 备用 80 g' : '—' }}</small
+                  ><small>{{ moduleAvailable ? '今日完成 6 件' : '—' }}</small></button
                 ></ElCol
               >
               <ElCol :span="12"
                 ><button class="dispenser" @click="emit('navigate', 'hardware')"
                   ><span class="module-label">扭蛋奖励机</span
-                  ><ElTag size="small" :type="poweredOn ? 'warning' : 'info'">{{
-                    poweredOn ? '剩余 42 / 80 件' : offlineLabel
+                  ><ElTag size="small" :type="moduleAvailable ? 'warning' : 'info'">{{
+                    moduleAvailable ? '剩余 42 / 80 件' : moduleStatusLabel
                   }}</ElTag
-                  ><small>{{ poweredOn ? '今日出货 16 件 · A4 缺货' : '奖励库存待上报' }}</small
+                  ><small>{{
+                    moduleAvailable ? '今日出货 16 件 · A4 缺货' : '奖励库存待上报'
+                  }}</small
                   ><small>奖励出货口 · 非付费</small></button
                 ></ElCol
               >
@@ -105,38 +111,54 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
-  const props = defineProps<{
-    device: {
-      realDevice?: boolean
-      state: string
-      uptime: string
-      cpu: number | null
-      memory: number | null
-      disk: number | null
-      powerState: string
-    }
-  }>()
+  import { storeToRefs } from 'pinia'
+  import { useDeviceMonitorStore } from '@/store/modules/device-monitor'
+  const { currentDevice } = storeToRefs(useDeviceMonitorStore())
+  const device = computed(() => currentDevice.value!)
   const metrics = computed(() => [
-    { name: 'CPU', value: props.device.cpu, detail: '处理器使用率' },
-    { name: '内存', value: props.device.memory, detail: '内存使用率' },
-    { name: '磁盘', value: props.device.disk, detail: '磁盘使用率' }
+    { name: 'CPU', value: device.value.cpu, detail: '处理器使用率' },
+    { name: '内存', value: device.value.memory, detail: '内存使用率' },
+    { name: '磁盘', value: device.value.disk, detail: '磁盘使用率' }
   ])
   const emit = defineEmits<{ navigate: [tab: string] }>()
-  const poweredOn = computed(
-    () =>
-      !props.device.realDevice &&
-      props.device.powerState === '已开机' &&
-      props.device.state === 'online'
+  const poweredOn = computed(() =>
+    device.value.realDevice
+      ? device.value.state === 'online'
+      : device.value.powerState === '已开机' && device.value.state === 'online'
   )
-  const offlineLabel = computed(() => (props.device.powerState === '已关机' ? '未开机' : '未连接'))
-  const snapshot = computed(() => !props.device.realDevice && props.device.state !== 'unknown')
+  const moduleAvailable = computed(() => !device.value.realDevice && poweredOn.value)
+  const screenAvailable = computed(() => device.value.state === 'online')
+  const offlineLabel = computed(() => (device.value.powerState === '已关机' ? '未开机' : '未连接'))
+  const moduleStatusLabel = computed(() =>
+    device.value.realDevice ? '待上报' : offlineLabel.value
+  )
+  const statusLabel = computed(() =>
+    device.value.realDevice
+      ? device.value.state === 'online'
+        ? '在线 · 遥测'
+        : device.value.state === 'offline'
+          ? '已离线'
+          : '等待首次连接'
+      : poweredOn.value
+        ? '运行中 · 演示状态'
+        : offlineLabel.value
+  )
+  const snapshot = computed(() =>
+    device.value.realDevice ? screenAvailable.value : device.value.state !== 'unknown'
+  )
   const value = (text: string) => (snapshot.value ? text : '待上报')
   const notice = computed(() =>
-    !snapshot.value
-      ? '设备尚未上报模块状态，示意图仅展示硬件布局。'
-      : props.device.state === 'offline'
-        ? '设备已离线，以下为最后一次示例快照，不代表当前状态。'
-        : '模拟设备状态，可点击机身模块查看对应监控；不执行硬件控制。'
+    device.value.realDevice
+      ? device.value.state === 'online'
+        ? 'CPU、内存、磁盘和运行时长来自设备最新遥测；3D 打印机与奖励机状态仍等待设备接入。'
+        : device.value.state === 'offline'
+          ? '设备已离线，资源指标不可作为当前状态；模块状态等待恢复连接。'
+          : '设备尚未首次连接，所有状态等待上报。'
+      : !snapshot.value
+        ? '设备尚未上报模块状态，示意图仅展示硬件布局。'
+        : device.value.state === 'offline'
+          ? '设备已离线，以下为最后一次示例快照，不代表当前状态。'
+          : '模拟设备状态，可点击机身模块查看对应监控；不执行硬件控制。'
   )
 </script>
 
@@ -163,6 +185,8 @@
 
   .screen-metric strong {
     font-size: clamp(9px, 3cqw, 14px) !important;
+    max-width: 100%;
+    white-space: nowrap;
   }
 
   .screen-metric > span,

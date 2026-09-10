@@ -35,8 +35,8 @@
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
   import { useTableColumns } from '@/hooks/core/useTableColumns'
   import { formatDateTime } from '@/utils/date'
-  import LlmDialog from './modules/llm-dialog.vue'
-  import LlmSearch from './modules/llm-search.vue'
+  import LlmDialog from './components/llm-dialog.vue'
+  import LlmSearch from './components/llm-search.vue'
   import type { LlmModel, LlmModelMutation, LlmSearchParams } from './types'
 
   defineOptions({ name: 'AiLlm' })

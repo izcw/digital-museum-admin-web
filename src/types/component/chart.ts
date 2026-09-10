@@ -126,11 +126,13 @@ export interface BarChartProps extends BaseChartProps, AxisDisplayProps, Interac
 }
 
 // 折线图数据项接口
+export type LineValue = number | null
+
 export interface LineDataItem {
   /** 系列名称 */
   name: string
   /** 数据值 */
-  data: number[]
+  data: LineValue[]
   /** 线条宽度 */
   lineWidth?: number
   /** 是否显示区域填充 */
@@ -155,7 +157,7 @@ export interface LineDataItem {
 // 折线图 Props 接口 - 统一折线图配置
 export interface LineChartProps extends BaseChartProps, AxisDisplayProps, InteractionProps {
   /** 图表数据 - 支持单组数据或多组数据 */
-  data: number[] | LineDataItem[]
+  data: LineValue[] | LineDataItem[]
   /** X轴标签数据 */
   xAxisData?: string[]
   /** 线条宽度 */

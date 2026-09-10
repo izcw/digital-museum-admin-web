@@ -112,7 +112,7 @@
     type AdminMutation
   } from '../../shared/school-data'
   import { useUserStore } from '@/store/modules/user'
-  import AdminDialog from '../../admin/modules/edit-dialog.vue'
+  import AdminDialog from '../../admin/components/edit-dialog.vue'
 
   const props = defineProps<{ schoolId: string }>()
   const visible = defineModel<boolean>('visible', { required: true })

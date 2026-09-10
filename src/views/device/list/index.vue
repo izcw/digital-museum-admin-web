@@ -10,6 +10,15 @@
       </div>
     </section>
 
+    <ElAlert
+      v-if="realtimeError"
+      :title="realtimeError"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="realtime-alert"
+    />
+
     <ElCard class="filter-card" shadow="never">
       <div class="filter-row">
         <div class="filter-fields">
@@ -96,10 +105,20 @@
                     <ElDropdownItem command="monitor">
                       <ArtSvgIcon icon="ri:dashboard-3-line" class="mr-2" />设备监控
                     </ElDropdownItem>
+                    <ElDropdownItem command="detail">
+                      <ArtSvgIcon icon="ri:eye-line" class="mr-2" />查看详情
+                    </ElDropdownItem>
+                    <ElDropdownItem
+                      v-if="item.id >= 1_000_000_000"
+                      command="reset-connection"
+                      divided
+                    >
+                      <ArtSvgIcon icon="ri:key-2-line" class="mr-2" />重置设备连接
+                    </ElDropdownItem>
                     <ElDropdownItem command="edit">
                       <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
                     </ElDropdownItem>
-                    <ElDropdownItem command="delete" divided :disabled="item.id >= 1_000_000_000">
+                    <ElDropdownItem command="delete" divided>
                       <span class="text-danger">
                         <ArtSvgIcon icon="ri:delete-bin-4-line" class="mr-2" />删除设备
                       </span>
@@ -157,7 +176,7 @@
     </div>
     <ElCard v-else class="empty-card" shadow="never">
       <ElEmpty :description="devicesFailed ? '设备加载失败，请重试' : '没有符合条件的设备'">
-        <ElButton v-if="devicesFailed" type="primary" @click="refreshDevices">重新加载</ElButton>
+        <ElButton v-if="devicesFailed" type="primary" @click="refreshDevices()">重新加载</ElButton>
       </ElEmpty>
     </ElCard>
 
@@ -348,7 +367,7 @@
           <ElDescriptionsItem label="系统版本">{{
             currentDevice.systemVersion || '-'
           }}</ElDescriptionsItem>
-          <ElDescriptionsItem label="电源状态"> 尚未上报 </ElDescriptionsItem>
+          <ElDescriptionsItem label="电源状态">尚未上报</ElDescriptionsItem>
           <ElDescriptionsItem label="最后心跳">{{
             currentDevice.lastHeartbeatAt
               ? formatDateTime(currentDevice.lastHeartbeatAt)
@@ -357,8 +376,14 @@
           <ElDescriptionsItem label="备注">{{ currentDevice.remark || '-' }}</ElDescriptionsItem>
         </ElDescriptions>
         <DeviceSchoolDetails v-if="detailVisible" :device-id="currentDevice.id" />
+        <div v-if="currentDevice.id >= 1_000_000_000" class="detail-actions-panel">
+          <ElButton type="warning" plain @click="handleResetConnection(currentDevice)">
+            <ArtSvgIcon icon="ri:key-2-line" class="mr-1" />重置设备连接
+          </ElButton>
+        </div>
       </template>
     </ElDrawer>
+
     <Teleport to="body">
       <ArtMenuRight
         ref="deviceMenuRef"
@@ -372,7 +397,7 @@
 </template>
 
 <script setup lang="ts">
-  import DeviceSchoolDetails from './device-school-details.vue'
+  import DeviceSchoolDetails from './components/device-school-details.vue'
   import ArtMenuRight, {
     type MenuItemType
   } from '@/components/core/others/art-menu-right/index.vue'
@@ -394,14 +419,17 @@
     getModelImage,
     getModelName,
     removeDevice,
+    resetDeviceConnection,
     saveDevice,
     loadDevices,
+    loadDevice,
     deviceSchools,
     loadDeviceSchools,
     type Device,
     type DeviceMutation,
     type OnlineStatus
   } from '../shared/device-store'
+  import { subscribeDeviceRealtime } from '../shared/device-realtime'
 
   defineOptions({ name: 'DeviceList' })
   const router = useRouter()
@@ -444,19 +472,23 @@
       schoolsLoading.value = false
     }
   }
-  const refreshDevices = async () => {
-    devicesLoading.value = true
-    devicesFailed.value = false
+  const refreshDevices = async (silent = false) => {
+    if (!silent) {
+      devicesLoading.value = true
+      devicesFailed.value = false
+    }
     try {
       await loadDevices()
       if (currentDevice.value)
         currentDevice.value = devices.value.find((d) => d.id === currentDevice.value?.id)
     } catch (error) {
-      devicesFailed.value = true
-      devices.value = []
-      ElMessage.error(schoolError(error, '加载设备失败，请重试'))
+      if (!silent) {
+        devicesFailed.value = true
+        devices.value = []
+        ElMessage.error(schoolError(error, '加载设备失败，请重试'))
+      }
     } finally {
-      devicesLoading.value = false
+      if (!silent) devicesLoading.value = false
     }
   }
   const refreshPage = () => {
@@ -464,12 +496,55 @@
     void refreshSchools()
     void refreshTags()
   }
-  onMounted(refreshPage)
+  let unsubscribeRealtime: (() => void) | undefined
+  const realtimeError = ref('')
+  const pendingRealtimeIds = new Set<number>()
+  let realtimeFlushTimer: ReturnType<typeof setTimeout> | undefined
+  const flushRealtimeDevices = async () => {
+    const ids = [...pendingRealtimeIds]
+    pendingRealtimeIds.clear()
+    if (!ids.length) return
+    if (ids.length > 4) {
+      await refreshDevices(true)
+      return
+    }
+    const results = await Promise.allSettled(ids.map((id) => loadDevice(id)))
+    if (results.some((result) => result.status === 'rejected')) await refreshDevices(true)
+  }
+  const queueRealtimeDevice = (id: number) => {
+    pendingRealtimeIds.add(id)
+    clearTimeout(realtimeFlushTimer)
+    realtimeFlushTimer = setTimeout(() => void flushRealtimeDevices(), 150)
+  }
+  const stopDeviceRealtime = () => {
+    clearTimeout(realtimeFlushTimer)
+    pendingRealtimeIds.clear()
+    unsubscribeRealtime?.()
+    unsubscribeRealtime = undefined
+  }
+  const startDeviceRealtime = () => {
+    if (unsubscribeRealtime) return
+    unsubscribeRealtime = subscribeDeviceRealtime((event) => {
+      if (event.type === 'realtime.ready') {
+        realtimeError.value = ''
+        void refreshDevices(true)
+      } else if (event.type === 'realtime.disconnected')
+        realtimeError.value = '实时连接已断开，正在自动重连；当前保留最后一次设备状态'
+      else queueRealtimeDevice(event.deviceId)
+    })
+  }
+  onMounted(() => {
+    refreshPage()
+    startDeviceRealtime()
+  })
   let activatedOnce = false
   onActivated(() => {
-    if (activatedOnce) refreshPage()
+    if (activatedOnce) void refreshDevices()
+    startDeviceRealtime()
     activatedOnce = true
   })
+  onDeactivated(stopDeviceRealtime)
+  onBeforeUnmount(stopDeviceRealtime)
   type DeviceForm = Omit<DeviceMutation, 'modelId'> & { modelId?: number }
 
   const ONLINE_CONFIG: Record<OnlineStatus, { label: string; type: TagProps['type'] }> = {
@@ -694,10 +769,16 @@
     { key: 'monitor', label: '设备监控', icon: 'ri:dashboard-3-line' },
     { key: 'edit', label: '编辑设备', icon: 'ri:edit-2-line', showLine: true },
     {
+      key: 'reset-connection',
+      label: '重置设备连接',
+      icon: 'ri:key-2-line',
+      disabled: contextDeviceId.value === undefined || contextDeviceId.value < 1_000_000_000
+    },
+    {
       key: 'delete',
       label: '删除设备',
       icon: 'ri:delete-bin-4-line',
-      disabled: contextDeviceId.value === undefined || contextDeviceId.value >= 1_000_000_000
+      disabled: contextDeviceId.value === undefined
     }
   ])
   const showDeviceMenu = async (event: MouseEvent, row: Device) => {
@@ -722,15 +803,36 @@
       currentDevice.value = row
       detailVisible.value = true
     }
+    if (command === 'reset-connection') void handleResetConnection(row)
     if (command === 'edit') openDialog('edit', row)
     if (command === 'delete') handleDelete(row)
   }
-  const handleDelete = async (row: Device) => {
-    if (row.id >= 1_000_000_000) return
+  const handleResetConnection = async (row: Device) => {
+    if (row.id < 1_000_000_000) return
     try {
-      await ElMessageBox.confirm(`确定删除设备“${row.deviceName}”吗？`, '删除设备', {
-        type: 'warning'
-      })
+      await ElMessageBox.confirm(
+        `重置“${row.deviceName}”的连接后，客户端会在下一次遥测重试时自动恢复。是否继续？`,
+        '重置设备连接',
+        { type: 'warning', confirmButtonText: '确认重置' }
+      )
+      await resetDeviceConnection(row.id)
+      ElMessage.success('设备连接已重置，等待客户端自动恢复')
+    } catch (error) {
+      if (error !== 'cancel' && error !== 'close')
+        ElMessage.error(schoolError(error, '重置设备连接失败'))
+    }
+  }
+  const handleDelete = async (row: Device) => {
+    try {
+      const registeredHint =
+        row.id >= 1_000_000_000
+          ? '删除后将同时清除连接凭据、遥测历史和 OTA 任务记录；如需再次使用，必须重新激活。'
+          : '删除后将同时清除标签关联和 OTA 任务记录。'
+      await ElMessageBox.confirm(
+        `确定删除设备“${row.deviceName}”吗？${registeredHint}`,
+        '删除设备',
+        { type: 'warning', confirmButtonText: '确认删除' }
+      )
       await removeDevice(row.id)
       ElMessage.success('设备删除成功')
     } catch (error) {
@@ -749,6 +851,10 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .realtime-alert {
     margin-bottom: 14px;
   }
 

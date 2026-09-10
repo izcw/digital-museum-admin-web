@@ -59,19 +59,19 @@
 </template>
 
 <script setup lang="ts">
-  import Banner from './modules/banner.vue'
-  import TotalOrderVolume from './modules/total-order-volume.vue'
-  import TotalProducts from './modules/total-products.vue'
-  import SalesTrend from './modules/sales-trend.vue'
-  import SalesClassification from './modules/sales-classification.vue'
-  import TransactionList from './modules/transaction-list.vue'
-  import HotCommodity from './modules/hot-commodity.vue'
-  import RecentTransaction from './modules/recent-transaction.vue'
-  import AnnualSales from './modules/annual-sales.vue'
-  import ProductSales from './modules/product-sales.vue'
-  import SalesGrowth from './modules/sales-growth.vue'
-  import CartConversionRate from './modules/cart-conversion-rate.vue'
-  import HotProductsList from './modules/hot-products-list.vue'
+  import Banner from './components/banner.vue'
+  import TotalOrderVolume from './components/total-order-volume.vue'
+  import TotalProducts from './components/total-products.vue'
+  import SalesTrend from './components/sales-trend.vue'
+  import SalesClassification from './components/sales-classification.vue'
+  import TransactionList from './components/transaction-list.vue'
+  import HotCommodity from './components/hot-commodity.vue'
+  import RecentTransaction from './components/recent-transaction.vue'
+  import AnnualSales from './components/annual-sales.vue'
+  import ProductSales from './components/product-sales.vue'
+  import SalesGrowth from './components/sales-growth.vue'
+  import CartConversionRate from './components/cart-conversion-rate.vue'
+  import HotProductsList from './components/hot-products-list.vue'
 
   defineOptions({ name: 'Ecommerce' })
 </script>

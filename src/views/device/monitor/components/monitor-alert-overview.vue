@@ -17,28 +17,36 @@
 </template>
 <script setup lang="ts">
   import { computed } from 'vue'
-  const props = defineProps<{ device: { realDevice?: boolean; state: string; issue: string } }>()
+  import { storeToRefs } from 'pinia'
+  import { useDeviceMonitorStore } from '@/store/modules/device-monitor'
+  const { currentDevice: device } = storeToRefs(useDeviceMonitorStore())
   const emit = defineEmits<{ navigate: [tab: string] }>()
-  const available = computed(() => !props.device.realDevice && props.device.state !== 'unknown')
+  const available = computed(() => device.value?.state !== 'unknown')
   const items = computed(() => [
     {
       label: '严重',
-      count: props.device.state === 'offline' ? 1 : 0,
-      note: props.device.state === 'offline' ? '设备连接已中断' : '暂无严重告警',
+      count: device.value?.state === 'offline' ? 1 : 0,
+      note: device.value?.state === 'offline' ? '设备连接已中断' : '暂无严重告警',
       tone: 'danger',
       tab: 'events'
     },
     {
       label: '警告',
-      count: 2 + (props.device.issue ? 1 : 0),
-      note: props.device.issue || '奖励库存与备用耗材需补充',
+      count: device.value?.realDevice
+        ? device.value.issue
+          ? 1
+          : 0
+        : 2 + (device.value?.issue ? 1 : 0),
+      note:
+        device.value?.issue ||
+        (device.value?.realDevice ? '暂无资源告警' : '奖励库存与备用耗材需补充'),
       tone: 'warning',
       tab: 'hardware'
     },
     {
       label: '提醒',
-      count: 2,
-      note: '烟雾模块未配置，打印机维护待复查',
+      count: device.value?.realDevice ? 0 : 2,
+      note: device.value?.realDevice ? '暂无设备提醒' : '烟雾模块未配置，打印机维护待复查',
       tone: 'info',
       tab: 'hardware'
     }
@@ -46,7 +54,6 @@
 </script>
 <style scoped lang="scss">
   .alert-overview {
-    margin-bottom: 10px;
     border-radius: 10px;
   }
 

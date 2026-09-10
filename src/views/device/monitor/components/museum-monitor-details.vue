@@ -5,9 +5,11 @@
         <ElCol v-for="item in overview" :key="item.label" :xs="12" :sm="8" :md="8" :lg="4" :xl="4">
           <button class="module-card" @click="activeTab = item.tab">
             <ArtSvgIcon :icon="item.icon" /><span>{{ item.label }}</span>
-            <strong :class="{ warning: available && item.warning }">{{ value(item.value) }}</strong>
+            <strong :class="{ warning: (available || item.reported) && item.warning }">{{
+              item.reported || available ? item.value : '待上报'
+            }}</strong>
             <small
-              >{{ available ? item.note : '等待设备上报' }}
+              >{{ item.reported || available ? item.note : '等待设备上报' }}
               <ArtSvgIcon icon="ri:arrow-right-s-line"
             /></small>
           </button>
@@ -140,58 +142,65 @@
       </ElRow>
     </ElTabPane>
     <ElTabPane label="硬件与网络" name="hardware" lazy>
+      <slot name="hardware" />
       <HardwarePeripherals :device="device" />
-      <MonitorTelemetry :device="device" />
+      <MonitorTelemetry v-if="!device.realDevice" :device="device" />
     </ElTabPane>
     <ElTabPane label="事件记录" name="events">
-      <section class="panel"
-        ><div class="panel-heading"
-          ><h3>设备事件</h3
-          ><ElSelect v-model="eventType" aria-label="事件类型" style="width: 170px"
-            ><ElOption label="全部类型" value="all" /><ElOption
-              label="内容同步"
-              value="content" /><ElOption label="AI 服务" value="ai" /><ElOption
-              label="打印任务"
-              value="printing" /><ElOption label="设备运行" value="system" /></ElSelect></div
-        ><ElTable :data="filteredEvents" empty-text="暂无事件上报"
-          ><ElTableColumn prop="time" label="时间" width="180" /><ElTableColumn
-            prop="category"
-            label="类型"
-            width="140" /><ElTableColumn label="级别" width="100"
-            ><template #default="{ row }"
-              ><ElTag :type="row.warning ? 'warning' : 'info'">{{
-                row.warning ? '提醒' : '信息'
-              }}</ElTag></template
-            ></ElTableColumn
-          ><ElTableColumn prop="message" label="事件内容" min-width="300" /></ElTable
-      ></section>
-      <section class="panel operation-audit">
-        <div class="panel-heading"
-          ><div
-            ><h3>远程操作审计</h3
-            ><p class="note">记录远程操作的操作者、原因与执行结果。当前仅为审计界面演示。</p></div
-          ><ElTag type="info">演示记录</ElTag></div
-        >
-        <ElTable :data="available ? operationAudits : []" empty-text="暂无远程操作记录">
-          <ElTableColumn prop="time" label="操作时间（示例）" width="180" /><ElTableColumn
-            prop="operator"
-            label="操作者"
-            width="130"
-          /><ElTableColumn prop="action" label="操作" width="130" /><ElTableColumn
-            prop="reason"
-            label="原因"
-            min-width="220"
-          />
-          <ElTableColumn label="结果" width="110"
-            ><template #default="{ row }"
-              ><ElTag :type="row.success ? 'success' : 'danger'">{{
-                row.success ? '执行成功' : '执行失败'
-              }}</ElTag></template
-            ></ElTableColumn
-          >
-          <ElTableColumn prop="detail" label="执行详情" min-width="220" />
-        </ElTable>
-      </section>
+      <ElRow :gutter="10" class="event-card-row">
+        <ElCol :span="24"
+          ><section class="panel"
+            ><div class="panel-heading"
+              ><h3>设备事件</h3
+              ><ElSelect v-model="eventType" aria-label="事件类型" style="width: 170px"
+                ><ElOption label="全部类型" value="all" /><ElOption
+                  label="内容同步"
+                  value="content" /><ElOption label="AI 服务" value="ai" /><ElOption
+                  label="打印任务"
+                  value="printing" /><ElOption label="设备运行" value="system" /></ElSelect></div
+            ><ElTable :data="filteredEvents" empty-text="暂无事件上报"
+              ><ElTableColumn prop="time" label="时间" width="180" /><ElTableColumn
+                prop="category"
+                label="类型"
+                width="140" /><ElTableColumn label="级别" width="100"
+                ><template #default="{ row }"
+                  ><ElTag :type="row.warning ? 'warning' : 'info'">{{
+                    row.warning ? '提醒' : '信息'
+                  }}</ElTag></template
+                ></ElTableColumn
+              ><ElTableColumn prop="message" label="事件内容" min-width="300" /></ElTable></section
+        ></ElCol>
+        <ElCol :span="24"
+          ><section class="panel operation-audit">
+            <div class="panel-heading"
+              ><div
+                ><h3>远程操作审计</h3
+                ><p class="note"
+                  >记录远程操作的操作者、原因与执行结果。当前仅为审计界面演示。</p
+                ></div
+              ><ElTag type="info">演示记录</ElTag></div
+            >
+            <ElTable :data="available ? operationAudits : []" empty-text="暂无远程操作记录">
+              <ElTableColumn prop="time" label="操作时间（示例）" width="180" /><ElTableColumn
+                prop="operator"
+                label="操作者"
+                width="130"
+              /><ElTableColumn prop="action" label="操作" width="130" /><ElTableColumn
+                prop="reason"
+                label="原因"
+                min-width="220"
+              />
+              <ElTableColumn label="结果" width="110"
+                ><template #default="{ row }"
+                  ><ElTag :type="row.success ? 'success' : 'danger'">{{
+                    row.success ? '执行成功' : '执行失败'
+                  }}</ElTag></template
+                ></ElTableColumn
+              >
+              <ElTableColumn prop="detail" label="执行详情" min-width="220" />
+            </ElTable> </section
+        ></ElCol>
+      </ElRow>
     </ElTabPane>
   </ElTabs>
 </template>
@@ -215,7 +224,7 @@
   const activeTab = ref('overview')
   const eventType = ref('all')
   watch(
-    () => props.device,
+    () => props.device.id,
     () => {
       activeTab.value = 'overview'
       eventType.value = 'all'
@@ -246,11 +255,17 @@
   const overview = computed(() => [
     {
       label: '设备连接',
-      value: props.device.state === 'offline' ? '已离线' : '在线',
+      value:
+        props.device.state === 'unknown'
+          ? '等待首次连接'
+          : props.device.state === 'offline'
+            ? '已离线'
+            : '在线',
       note: '查看硬件与网络',
       icon: 'ri:wifi-line',
       tab: 'hardware',
-      warning: props.device.state === 'offline'
+      warning: props.device.state === 'offline',
+      reported: props.device.realDevice && props.device.state !== 'unknown'
     },
     {
       label: '课堂可用状态',
@@ -447,7 +462,8 @@
 
 <style scoped lang="scss">
   .module-row,
-  .panel-row {
+  .panel-row,
+  .event-card-row {
     row-gap: 10px;
     margin-bottom: 24px;
   }

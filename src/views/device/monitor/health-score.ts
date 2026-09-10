@@ -6,15 +6,14 @@ export interface HealthDevice {
   disk: number | null
 }
 
-/** 前端演示规则；未接入数据、离线和未激活设备不生成当前评分。 */
+/** 依据当前 CPU、内存和磁盘占用评分；离线、未激活或缺项时不生成当前评分。 */
 export function getHealth(device: HealthDevice) {
   const metrics = [
     { name: 'CPU', value: device.cpu },
     { name: '内存', value: device.memory },
     { name: '磁盘', value: device.disk }
   ]
-  const unavailable =
-    device.realDevice || device.state !== 'online' || metrics.some((m) => m.value === null)
+  const unavailable = device.state !== 'online' || metrics.some((m) => m.value === null)
   const deductions = metrics.map((m) => ({
     ...m,
     deduction: m.value !== null && m.value >= 90 ? 25 : m.value !== null && m.value >= 80 ? 15 : 0
@@ -26,7 +25,7 @@ export function getHealth(device: HealthDevice) {
     score === null ? 'info' : score >= 90 ? 'success' : score >= 70 ? 'warning' : 'danger'
   const label =
     score === null
-      ? device.state === 'offline' && !device.realDevice
+      ? device.state === 'offline'
         ? '已离线'
         : '待评估'
       : score >= 90

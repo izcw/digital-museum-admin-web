@@ -1,11 +1,12 @@
 import deviceImage1 from '@imgs/device/device-01.png'
 import { apiServerRequest } from '@/api/auth'
+import type { TelemetrySnapshot } from '../monitor/telemetry-data'
 import deviceImage2 from '@imgs/device/device-02.png'
 import deviceImage3 from '@imgs/device/device-03.png'
 
 export type EnableStatus = 'enabled' | 'disabled'
 export type OnlineStatus = 'online' | 'offline' | 'unknown'
-export type PowerStatus = 'on' | 'off'
+export type PowerStatus = 'on' | 'off' | 'unknown'
 export type ScreenOrientation = 'landscape' | 'portrait'
 
 export interface DeviceModel {
@@ -44,6 +45,8 @@ export async function loadDeviceTags() {
   ).data
 }
 export interface Device {
+  telemetry?: TelemetrySnapshot
+  freshness?: 'fresh' | 'delayed' | 'stale' | 'unknown'
   tagIds?: number[]
   tags?: DeviceTag[]
   id: number
@@ -152,12 +155,29 @@ export const deviceModels = ref<DeviceModel[]>([
 ])
 
 export const devices = ref<Device[]>([])
+const deviceRequests = new Map<number, Promise<Device>>()
 
 const nextId = (records: Array<{ id: number }>) =>
   Math.max(0, ...records.filter((item) => item.id < 1_000_000_000).map((item) => item.id)) + 1
 
 export async function loadDevices() {
   devices.value = (await apiServerRequest.get<Device[]>('/devices', { timeout: 15000 })).data
+}
+export async function loadDevice(id: number) {
+  const pending = deviceRequests.get(id)
+  if (pending) return pending
+  const request = apiServerRequest
+    .get<Device>('/devices/' + id, { timeout: 15000 })
+    .then(({ data: device }) => {
+      const exists = devices.value.some((item) => item.id === id)
+      devices.value = exists
+        ? devices.value.map((item) => (item.id === id ? device : item))
+        : [device, ...devices.value]
+      return device
+    })
+    .finally(() => deviceRequests.delete(id))
+  deviceRequests.set(id, request)
+  return request
 }
 
 export const getModelName = (modelId: number) =>
@@ -221,4 +241,16 @@ export const updateDevicePower = (id: number, powerStatus: PowerStatus) => {
 export const removeDevice = async (id: number) => {
   await apiServerRequest.delete(`/devices/${id}`, { timeout: 15000 })
   devices.value = devices.value.filter((item) => item.id !== id)
+}
+
+export async function resetDeviceConnection(
+  id: number
+): Promise<{ reset: true; serialNumber: string }> {
+  return (
+    await apiServerRequest.post<{ reset: true; serialNumber: string }>(
+      `/devices/${id}/reset-connection`,
+      undefined,
+      { timeout: 15000 }
+    )
+  ).data
 }

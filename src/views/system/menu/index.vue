@@ -55,7 +55,7 @@
   import { formatDateTime } from '@/utils/date'
   import { formatMenuTitle } from '@/utils/router'
   import { ElMessage, ElMessageBox, ElTag } from 'element-plus'
-  import MenuDialog from './modules/menu-dialog.vue'
+  import MenuDialog from './components/menu-dialog.vue'
 
   defineOptions({ name: 'Menus' })
   type MenuListItem = Api.SystemManage.MenuListItem

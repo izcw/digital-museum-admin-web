@@ -167,6 +167,7 @@
 
 <script setup lang="ts">
   import {
+    ElImage,
     ElMessage,
     ElMessageBox,
     ElTag,
