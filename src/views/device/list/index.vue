@@ -826,7 +826,7 @@
     try {
       const registeredHint =
         row.id >= 1_000_000_000
-          ? '删除后将同时清除连接凭据、遥测历史和 OTA 任务记录；如需再次使用，必须重新激活。'
+          ? '删除后将清除设备资料、连接 Token、遥测历史和 OTA 任务记录；仍在运行的客户端会自动重新注册。'
           : '删除后将同时清除标签关联和 OTA 任务记录。'
       await ElMessageBox.confirm(
         `确定删除设备“${row.deviceName}”吗？${registeredHint}`,
