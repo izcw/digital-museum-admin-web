@@ -46,6 +46,7 @@
   import { formatDateTime } from '@/utils/date'
   import {
     listSchools,
+    removeSchool,
     saveSchool,
     schoolError,
     type SchoolMutation,
@@ -107,7 +108,8 @@
     handleCurrentChange,
     refreshData,
     refreshCreate,
-    refreshUpdate
+    refreshUpdate,
+    refreshRemove
   } = useTable({
     core: {
       apiFn: listSchools,
@@ -151,7 +153,7 @@
         {
           prop: 'operation',
           label: '操作',
-          width: 220,
+          width: 270,
           fixed: 'right',
           formatter: (row) =>
             h('div', { class: 'flex items-center' }, [
@@ -179,6 +181,17 @@
                   onClick: () => toggleStatus(row)
                 },
                 () => (row.status === 'enabled' ? '停用' : '启用')
+              ),
+              h(
+                ElButton,
+                {
+                  link: true,
+                  type: 'danger',
+                  disabled: !canManage.value || row.status === 'enabled',
+                  title: row.status === 'enabled' ? '请先停用学校' : '',
+                  onClick: () => handleDelete(row)
+                },
+                () => '删除'
               )
             ])
         }
@@ -238,6 +251,24 @@
       ElMessage.success(`已${action}`)
     } catch (error) {
       ElMessage.error(schoolError(error))
+    }
+  }
+  async function handleDelete(row: School) {
+    try {
+      await ElMessageBox.confirm(
+        `确定删除已停用的学校“${row.name}”吗？有关联的管理员或设备时将无法删除。`,
+        '删除学校',
+        { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    try {
+      await removeSchool(row.id)
+      await refreshRemove()
+      ElMessage.success('学校已删除')
+    } catch (error) {
+      ElMessage.error(schoolError(error, '学校删除失败'))
     }
   }
 

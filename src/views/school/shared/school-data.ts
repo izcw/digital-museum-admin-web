@@ -82,6 +82,10 @@ export async function saveSchool(payload: Partial<SchoolMutation>, id?: string) 
       : await apiServerRequest.post<School>('/schools', payload, { timeout: 15000 })
   ).data
 }
+export async function removeSchool(id: string) {
+  return (await apiServerRequest.delete<{ success: true }>(`/schools/${id}`, { timeout: 15000 }))
+    .data
+}
 export async function saveSchoolAdmin(payload: Partial<AdminMutation>, id?: string) {
   return (
     id
@@ -89,6 +93,11 @@ export async function saveSchoolAdmin(payload: Partial<AdminMutation>, id?: stri
           timeout: 15000
         })
       : await apiServerRequest.post<SchoolAdmin>('/school-admins', payload, { timeout: 15000 })
+  ).data
+}
+export async function removeSchoolAdmin(id: string) {
+  return (
+    await apiServerRequest.delete<{ success: true }>(`/school-admins/${id}`, { timeout: 15000 })
   ).data
 }
 export async function loadSchoolOptions() {

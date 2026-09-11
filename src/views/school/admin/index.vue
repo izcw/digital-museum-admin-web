@@ -38,6 +38,7 @@
   import { formatDateTime } from '@/utils/date'
   import {
     listAdmins,
+    removeSchoolAdmin,
     saveSchoolAdmin,
     schools,
     loadSchoolOptions,
@@ -106,7 +107,8 @@
     handleCurrentChange,
     refreshData,
     refreshCreate,
-    refreshUpdate
+    refreshUpdate,
+    refreshRemove
   } = useTable({
     core: {
       apiFn: listAdmins,
@@ -150,7 +152,7 @@
         {
           prop: 'operation',
           label: '操作',
-          width: 150,
+          width: 200,
           fixed: 'right',
           formatter: (row) =>
             h('div', { class: 'flex items-center' }, [
@@ -173,6 +175,17 @@
                   onClick: () => toggleStatus(row)
                 },
                 () => (row.status === 'enabled' ? '停用' : '启用')
+              ),
+              h(
+                ElButton,
+                {
+                  link: true,
+                  type: 'danger',
+                  disabled: !canManage.value || row.status === 'enabled',
+                  title: row.status === 'enabled' ? '请先停用学校管理员' : '',
+                  onClick: () => handleDelete(row)
+                },
+                () => '删除'
               )
             ])
         }
@@ -223,6 +236,24 @@
       ElMessage.success(`已${action}`)
     } catch (error) {
       ElMessage.error(schoolError(error))
+    }
+  }
+  async function handleDelete(row: SchoolAdmin) {
+    try {
+      await ElMessageBox.confirm(
+        `确定删除已停用的学校管理员“${row.userName}”吗？删除后该账号将无法恢复。`,
+        '删除学校管理员',
+        { type: 'warning', confirmButtonText: '确定删除', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    try {
+      await removeSchoolAdmin(row.id)
+      await refreshRemove()
+      ElMessage.success('学校管理员已删除')
+    } catch (error) {
+      ElMessage.error(schoolError(error, '学校管理员删除失败'))
     }
   }
 

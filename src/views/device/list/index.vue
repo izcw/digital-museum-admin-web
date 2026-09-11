@@ -776,9 +776,14 @@
     },
     {
       key: 'delete',
-      label: '删除设备',
+      label:
+        devices.value.find((device) => device.id === contextDeviceId.value)?.status === 'enabled'
+          ? '删除设备（请先停用）'
+          : '删除设备',
       icon: 'ri:delete-bin-4-line',
-      disabled: contextDeviceId.value === undefined
+      disabled:
+        contextDeviceId.value === undefined ||
+        devices.value.find((device) => device.id === contextDeviceId.value)?.status === 'enabled'
     }
   ])
   const showDeviceMenu = async (event: MouseEvent, row: Device) => {
@@ -823,13 +828,17 @@
     }
   }
   const handleDelete = async (row: Device) => {
+    if (row.status === 'enabled') {
+      ElMessage.warning('请先停用设备，再删除设备')
+      return
+    }
     try {
       const registeredHint =
         row.id >= 1_000_000_000
           ? '删除后将清除设备资料、连接 Token、遥测历史和 OTA 任务记录；仍在运行的客户端会自动重新注册。'
           : '删除后将同时清除标签关联和 OTA 任务记录。'
       await ElMessageBox.confirm(
-        `确定删除设备“${row.deviceName}”吗？${registeredHint}`,
+        `确定删除已停用的设备“${row.deviceName}”吗？${registeredHint}`,
         '删除设备',
         { type: 'warning', confirmButtonText: '确认删除' }
       )

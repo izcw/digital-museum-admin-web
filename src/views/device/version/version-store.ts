@@ -64,7 +64,7 @@ export interface VersionRecord {
 export interface VersionDraft {
   version: string
   releaseNotes: string
-  file: File
+  file?: File
 }
 
 export interface CreateReleaseTaskInput {
@@ -152,8 +152,21 @@ export async function addVersionDraft(draft: VersionDraft) {
   const formData = new FormData()
   formData.append('version', draft.version)
   formData.append('releaseNotes', draft.releaseNotes)
+  if (!draft.file) throw new Error('创建版本草稿必须选择安装包')
   formData.append('file', draft.file)
   const { data } = await apiServerRequest.post<VersionRecord>('/ota/versions', formData)
+  return synchronizeVersion(data)
+}
+
+export async function updateVersionDraft(versionId: number, draft: VersionDraft) {
+  const formData = new FormData()
+  formData.append('version', draft.version)
+  formData.append('releaseNotes', draft.releaseNotes)
+  if (draft.file) formData.append('file', draft.file)
+  const { data } = await apiServerRequest.patch<VersionRecord>(
+    `/ota/versions/${versionId}`,
+    formData
+  )
   return synchronizeVersion(data)
 }
 

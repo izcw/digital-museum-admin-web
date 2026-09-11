@@ -67,7 +67,7 @@
 
     <ElDialog
       v-model="createDialogVisible"
-      title="上传软件版本"
+      :title="editingRecord ? '编辑未发布版本' : '上传软件版本'"
       width="680px"
       align-center
       :close-on-click-modal="false"
@@ -78,22 +78,42 @@
           <ElInput v-model="form.version" placeholder="如 0.0.1" maxlength="40" />
         </ElFormItem>
         <ElFormItem label="版本文件" prop="fileName">
-          <ElUpload
-            v-model:file-list="uploadFiles"
-            drag
-            :auto-upload="false"
-            :limit="1"
-            accept=".exe"
-            :on-change="handleFileChange"
-            :on-remove="handleFileRemove"
-            class="version-uploader"
-          >
-            <ArtSvgIcon icon="ri:upload-cloud-2-line" class="upload-icon" />
-            <div class="el-upload__text">拖放文件到这里，或 <em>点击选择</em></div>
-            <template #tip>
-              <div class="el-upload__tip">支持 Windows NSIS .exe，最大 500 MB</div>
-            </template>
-          </ElUpload>
+          <div class="package-editor">
+            <div v-if="editingRecord" class="current-package">
+              <ArtSvgIcon icon="ri:file-download-line" class="current-package-icon" />
+              <div class="current-package-info">
+                <span>当前安装包</span>
+                <strong :title="editingRecord.fileName">{{ editingRecord.fileName }}</strong>
+                <small>{{ formatFileSize(editingRecord.fileSize) }}</small>
+              </div>
+              <ElTag type="info" effect="plain">已上传</ElTag>
+            </div>
+            <ElUpload
+              v-model:file-list="uploadFiles"
+              drag
+              :auto-upload="false"
+              :limit="1"
+              accept=".exe"
+              :on-change="handleFileChange"
+              :on-remove="handleFileRemove"
+              class="version-uploader"
+            >
+              <ArtSvgIcon icon="ri:upload-cloud-2-line" class="upload-icon" />
+              <div class="el-upload__text">
+                {{ editingRecord ? '拖放新安装包到这里，或' : '拖放文件到这里，或' }}
+                <em>点击选择</em>
+              </div>
+              <template #tip>
+                <div class="el-upload__tip">
+                  {{
+                    editingRecord
+                      ? '选择新文件后，保存修改将替换当前安装包；不选择则保留原安装包'
+                      : '支持 Windows NSIS .exe，最大 500 MB'
+                  }}
+                </div>
+              </template>
+            </ElUpload>
+          </div>
         </ElFormItem>
         <ElFormItem label="更新说明" prop="releaseNotes">
           <ElInput
@@ -114,7 +134,9 @@
       />
       <template #footer>
         <ElButton @click="createDialogVisible = false">取消</ElButton>
-        <ElButton type="primary" :loading="savingDraft" @click="submitDraft">保存草稿</ElButton>
+        <ElButton type="primary" :loading="savingDraft" @click="submitDraft">
+          {{ editingRecord ? '保存修改' : '保存草稿' }}
+        </ElButton>
       </template>
     </ElDialog>
 
@@ -176,7 +198,11 @@
         </ElFormItem>
       </ElForm>
       <ElAlert
-        :title="`预计覆盖 ${estimatedDeviceCount} 台设备；离线设备将在恢复连接后接收任务。`"
+        :title="
+          estimatedDeviceCount
+            ? `预计覆盖 ${estimatedDeviceCount} 台设备；离线设备将在恢复连接后接收任务。`
+            : '当前没有可更新设备，本次将仅发布版本；有设备注册后可再新建更新任务。'
+        "
         type="info"
         :closable="false"
         show-icon
@@ -186,7 +212,7 @@
         <ElButton
           type="primary"
           :loading="publishing"
-          :disabled="targetsLoading || targetsFailed || !selectedTargetDevices.length"
+          :disabled="targetsLoading || targetsFailed"
           @click="submitPublish"
           >确认发布</ElButton
         >
@@ -347,6 +373,7 @@
     releaseTasks,
     resumeReleaseTask,
     retryDeviceUpdate,
+    updateVersionDraft,
     versionRecords,
     type DeviceUpdateStatus,
     type ReleaseTask,
@@ -391,6 +418,7 @@
   const savingDraft = ref(false)
   const publishing = ref(false)
   const createDialogVisible = ref(false)
+  const editingRecord = ref<VersionRecord>()
   const publishDialogVisible = ref(false)
   const detailVisible = ref(false)
   const currentRecord = ref<VersionRecord>()
@@ -627,7 +655,7 @@
     {
       prop: 'operation',
       label: '操作',
-      width: 260,
+      width: 300,
       fixed: 'right',
       disabled: true,
       formatter: (row) =>
@@ -682,6 +710,13 @@
                 ElButton,
                 { link: true, type: 'danger', onClick: () => handleArchive(row) },
                 () => '归档'
+              )
+            : null,
+          row.status === 'draft'
+            ? h(
+                ElButton,
+                { link: true, type: 'primary', onClick: () => openEditDialog(row) },
+                () => '编辑'
               )
             : null,
           row.status === 'draft'
@@ -763,6 +798,7 @@
   }
 
   function openCreateDialog() {
+    editingRecord.value = undefined
     Object.assign(form, createEmptyForm())
     uploadFiles.value = []
     createDialogVisible.value = true
@@ -770,9 +806,23 @@
   }
 
   function resetCreateForm() {
+    editingRecord.value = undefined
     Object.assign(form, createEmptyForm())
     uploadFiles.value = []
     formRef.value?.clearValidate()
+  }
+
+  function openEditDialog(row: VersionRecord) {
+    editingRecord.value = row
+    Object.assign(form, {
+      version: row.version,
+      fileName: row.fileName,
+      fileSize: row.fileSize,
+      releaseNotes: row.releaseNotes
+    })
+    uploadFiles.value = []
+    createDialogVisible.value = true
+    nextTick(() => formRef.value?.clearValidate())
   }
 
   function handleFileChange(uploadFile: UploadFile) {
@@ -795,7 +845,12 @@
   }
 
   function handleFileRemove() {
-    Object.assign(form, { fileName: '', fileSize: 0 })
+    Object.assign(
+      form,
+      editingRecord.value
+        ? { fileName: editingRecord.value.fileName, fileSize: editingRecord.value.fileSize }
+        : { fileName: '', fileSize: 0 }
+    )
   }
 
   async function submitDraft() {
@@ -804,20 +859,24 @@
     try {
       if (!(await formRef.value.validate().catch(() => false))) return
       const duplicated = versionRecords.value.some(
-        (item) => item.version.toLowerCase() === form.version.trim().toLowerCase()
+        (item) =>
+          item.id !== editingRecord.value?.id &&
+          item.version.toLowerCase() === form.version.trim().toLowerCase()
       )
       if (duplicated) return void ElMessage.warning('该版本号已存在')
       const file = uploadFiles.value[0]?.raw
-      if (!file) return void ElMessage.warning('请选择版本文件')
-      await addVersionDraft({
+      if (!editingRecord.value && !file) return void ElMessage.warning('请选择版本文件')
+      const draft = {
         version: form.version.trim(),
         releaseNotes: form.releaseNotes.trim(),
         file
-      })
+      }
+      if (editingRecord.value) await updateVersionDraft(editingRecord.value.id, draft)
+      else await addVersionDraft(draft)
       createDialogVisible.value = false
       activeStatusTab.value = 'unpublished'
       resetSearch()
-      ElMessage.success('版本草稿已保存')
+      ElMessage.success(editingRecord.value ? '版本草稿已更新' : '版本草稿已保存')
     } catch (error) {
       showRequestError(error)
     } finally {
@@ -843,7 +902,6 @@
     if (publishing.value || targetsLoading.value || targetsFailed.value || !currentRecord.value)
       return
     if (!publishForm.schoolIds.length) return void ElMessage.warning('请选择关联学校或全部')
-    if (!selectedTargetDevices.value.length) return void ElMessage.warning('所选学校没有可更新设备')
     if (publishForm.scheduleMode === 'scheduled') {
       if (!publishForm.scheduledAt) return void ElMessage.warning('请选择定时下发时间')
       if (publishForm.scheduledAt.getTime() <= Date.now())
@@ -1097,9 +1155,48 @@
     color: var(--art-text-gray-800);
   }
 
+  .package-editor,
   .version-uploader,
   .version-uploader :deep(.el-upload) {
     width: 100%;
+  }
+
+  .current-package {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    background: var(--el-fill-color-light);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 8px;
+  }
+
+  .current-package-icon {
+    flex: none;
+    font-size: 26px;
+    color: var(--theme-color);
+  }
+
+  .current-package-info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    line-height: 1.5;
+  }
+
+  .current-package-info span,
+  .current-package-info small {
+    font-size: 12px;
+    color: var(--art-text-gray-500);
+  }
+
+  .current-package-info strong {
+    overflow: hidden;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .upload-icon {
