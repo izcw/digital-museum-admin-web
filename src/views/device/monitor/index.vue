@@ -103,6 +103,10 @@
             ><template #default="{ row }"
               ><MetricBar :value="row.cpu" :available="row.state === 'online'" /></template
           ></ElTableColumn>
+          <ElTableColumn label="GPU" width="130"
+            ><template #default="{ row }"
+              ><MetricBar :value="row.gpu" :available="row.state === 'online'" /></template
+          ></ElTableColumn>
           <ElTableColumn label="内存" width="130"
             ><template #default="{ row }"
               ><MetricBar :value="row.memory" :available="row.state === 'online'" /></template
@@ -323,6 +327,7 @@
     const oneDecimal = (value: number | null) =>
       value === null ? null : Math.round(value * 10) / 10
     const cpu = oneDecimal(metricValue(snapshot, 'cpuPercent'))
+    const gpu = oneDecimal(metricValue(snapshot, 'gpuPercent'))
     const memory = usedPercent(snapshot, 'memory'),
       disk = usedPercent(snapshot, 'disk')
     const state = device.onlineStatus
@@ -336,8 +341,10 @@
       tags: device.tags?.map((tag) => tag.name) ?? [],
       state,
       cpu,
+      gpu,
       memory,
       disk,
+      gpuModel: snapshot?.report.info.gpuModel || '—',
       heartbeat: snapshot ? new Date(snapshot.receivedAt).toLocaleString() : '—',
       ip: device.ipAddress || '—',
       version: device.clientVersion,
@@ -351,7 +358,7 @@
           ? '应用崩溃'
           : snapshot?.report.application.renderer === 'unresponsive'
             ? '应用无响应'
-            : Math.max(cpu ?? 0, memory ?? 0, disk ?? 0) >= 90
+            : Math.max(cpu ?? 0, gpu ?? 0, memory ?? 0, disk ?? 0) >= 90
               ? '资源占用偏高'
               : '',
       powerState: snapshot?.report.components?.power === 'on' ? '已开机' : '未知',
@@ -478,8 +485,10 @@
         tags: [],
         state: 'unknown',
         cpu: null,
+        gpu: null,
         memory: null,
         disk: null,
+        gpuModel: '—',
         heartbeat: '—',
         ip: '—',
         version: '—',

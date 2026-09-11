@@ -36,6 +36,7 @@
           { label: '连接状态', value: labels[device.value.state] },
           { label: '客户端版本', value: device.value.version },
           { label: 'IP 地址', value: device.value.ip },
+          { label: 'GPU', value: device.value.gpuModel },
           { label: '运行时长', value: device.value.uptime },
           { label: '电源状态', value: device.value.powerState },
           { label: '离线原因', value: device.value.offlineReason },

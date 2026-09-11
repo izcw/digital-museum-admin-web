@@ -108,15 +108,15 @@
                     <ElDropdownItem command="detail">
                       <ArtSvgIcon icon="ri:eye-line" class="mr-2" />查看详情
                     </ElDropdownItem>
+                    <ElDropdownItem command="edit">
+                      <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
+                    </ElDropdownItem>
                     <ElDropdownItem
                       v-if="item.id >= 1_000_000_000"
                       command="reset-connection"
                       divided
                     >
                       <ArtSvgIcon icon="ri:key-2-line" class="mr-2" />重置设备连接
-                    </ElDropdownItem>
-                    <ElDropdownItem command="edit">
-                      <ArtSvgIcon icon="ri:edit-2-line" class="mr-2" />编辑设备
                     </ElDropdownItem>
                     <ElDropdownItem command="delete" divided>
                       <span class="text-danger">

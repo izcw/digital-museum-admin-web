@@ -14,8 +14,10 @@ export interface MonitorDevice {
   state: DeviceState
   tags: string[]
   cpu: number | null
+  gpu: number | null
   memory: number | null
   disk: number | null
+  gpuModel: string
   heartbeat: string
   ip: string
   version: string

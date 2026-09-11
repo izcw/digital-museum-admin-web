@@ -32,3 +32,10 @@ declare module 'qrcode.vue' {
 
 // 全局变量声明
 declare const __APP_VERSION__: string // 版本号
+
+declare module 'mammoth/mammoth.browser' {
+  const mammoth: {
+    convertToHtml(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string }>
+  }
+  export default mammoth
+}

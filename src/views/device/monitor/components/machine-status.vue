@@ -12,7 +12,10 @@
       <ElCol :span="24">
         <div class="machine-stage" :class="{ 'is-offline': !poweredOn }">
           <div class="cabinet">
-            <div class="brand">小小博物館 <span>移动文化智慧课堂</span></div>
+            <div class="brand"
+              >小小博物館
+              <span>一体机 {{ snapshot ? `已运行 ${device.uptime}` : '运行时间待上报' }}</span></div
+            >
             <button class="screen" @click="emit('navigate', 'hardware')">
               <div v-if="!screenAvailable" class="screen-offline"
                 ><ArtSvgIcon icon="ri:shut-down-line" /><strong>{{ statusLabel }}</strong
@@ -55,15 +58,6 @@
                       }}</small>
                     </div>
                   </ElCol>
-                  <ElCol :span="6"
-                    ><div class="screen-metric runtime-metric"
-                      ><strong>{{ snapshot ? device.uptime : '待上报' }}</strong
-                      ><span>运行时间</span
-                      ><small>{{
-                        device.state === 'offline' ? '最后上报' : '系统运行时长'
-                      }}</small></div
-                    ></ElCol
-                  >
                 </ElRow>
                 <small>查看硬件与网络 →</small>
               </template>
@@ -117,6 +111,7 @@
   const device = computed(() => currentDevice.value!)
   const metrics = computed(() => [
     { name: 'CPU', value: device.value.cpu, detail: '处理器使用率' },
+    { name: 'GPU', value: device.value.gpu, detail: '图形处理器使用率' },
     { name: '内存', value: device.value.memory, detail: '内存使用率' },
     { name: '磁盘', value: device.value.disk, detail: '磁盘使用率' }
   ])
@@ -150,7 +145,7 @@
   const notice = computed(() =>
     device.value.realDevice
       ? device.value.state === 'online'
-        ? 'CPU、内存、磁盘和运行时长来自设备最新遥测；3D 打印机与奖励机状态仍等待设备接入。'
+        ? 'CPU、GPU、内存、磁盘和运行时长来自设备最新遥测；3D 打印机与奖励机状态仍等待设备接入。'
         : device.value.state === 'offline'
           ? '设备已离线，资源指标不可作为当前状态；模块状态等待恢复连接。'
           : '设备尚未首次连接，所有状态等待上报。'
@@ -192,14 +187,6 @@
   .screen-metric > span,
   .screen-metric small {
     font-size: clamp(8px, 2.4cqw, 12px) !important;
-  }
-
-  .runtime-metric strong {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: min(82px, 16cqw);
-    overflow-wrap: anywhere;
   }
 
   .screen-metric > span {
@@ -308,7 +295,7 @@
   }
 
   .brand span {
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 400;
     color: var(--el-text-color-secondary);
   }

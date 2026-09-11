@@ -6,7 +6,7 @@
       shadow="never"
       class="telemetry-card"
     >
-      <template #header>最近 30 分钟 CPU 趋势 · 分钟平均 / 峰值</template>
+      <template #header>最近 30 分钟 CPU / GPU 趋势 · 分钟平均 / 峰值</template>
       <ArtLineChart
         v-if="telemetryHistory.length"
         :data="series"
@@ -16,7 +16,7 @@
         height="240px"
       />
       <ElEmpty v-else description="暂无趋势数据" :image-size="64" />
-      <p>未采集的分钟显示为空；离线时保留最后一次数据。温度、GPU 和外设等待后续接入。</p>
+      <p>未采集的分钟显示为空；离线时保留最后一次数据。温度和外设等待后续接入。</p>
     </ElCard>
     <ElCard
       v-if="props.mode === 'all' || props.mode === 'resources'"
@@ -52,6 +52,7 @@
     storeToRefs(monitorStore)
   const labels: Record<string, string> = {
     cpuPercent: '整机 CPU 使用率',
+    gpuPercent: '整机 GPU 使用率',
     memoryTotalBytes: '内存总量',
     memoryAvailableBytes: '内存可用量',
     diskTotalBytes: '系统盘总容量',
@@ -104,6 +105,20 @@
       name: '峰值 CPU %',
       data: timeline.value.map((row) => {
         const value = row.metrics.cpuPercent?.max
+        return value === undefined ? null : Math.round(value * 10) / 10
+      })
+    },
+    {
+      name: '平均 GPU %',
+      data: timeline.value.map((row) => {
+        const value = row.metrics.gpuPercent?.average
+        return value === undefined ? null : Math.round(value * 10) / 10
+      })
+    },
+    {
+      name: '峰值 GPU %',
+      data: timeline.value.map((row) => {
+        const value = row.metrics.gpuPercent?.max
         return value === undefined ? null : Math.round(value * 10) / 10
       })
     }

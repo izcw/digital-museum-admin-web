@@ -69,6 +69,16 @@ export async function fetchUpdateRoleMenus(roleId: number, menuIds: number[]) {
 /** 当前用户的导航菜单，完全由数据库与角色权限生成。 */
 export async function fetchGetMenuList() {
   const { data } = await apiServerRequest.get<AppRouteRecord[]>('/menus/navigation')
+  const ai = data.find((item) => item.path === '/ai')
+  const knowledge = ai?.children?.find((item) => item.name === 'AiKnowledge')
+  if (knowledge?.children && !knowledge.children.some((item) => item.name === 'AiKnowledgeTag')) {
+    knowledge.children.push({
+      path: 'tag',
+      name: 'AiKnowledgeTag',
+      component: '/ai/knowledge/tag',
+      meta: { title: '标签管理', icon: 'ri:price-tag-3-line', keepAlive: true, sort: 3 }
+    } as AppRouteRecord)
+  }
   return data
 }
 

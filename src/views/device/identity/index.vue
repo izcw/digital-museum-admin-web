@@ -56,9 +56,10 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, reactive, ref } from 'vue'
+  import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
   import { apiServerRequest } from '@/api/auth'
+  import { subscribeDeviceRealtime } from '../shared/device-realtime'
 
   interface Identity {
     serialNumber: string
@@ -84,6 +85,7 @@
   })
 
   async function load() {
+    if (loading.value) return
     loading.value = true
     try {
       Object.assign(data, (await apiServerRequest.get('/device-identities')).data)
@@ -127,7 +129,11 @@
       if (error !== 'cancel' && error !== 'close') ElMessage.error('解除拉黑失败')
     }
   }
+  const unsubscribeRealtime = subscribeDeviceRealtime((event) => {
+    if (event.type === 'realtime.ready' || event.type === 'device.changed') void load()
+  })
   onMounted(load)
+  onBeforeUnmount(unsubscribeRealtime)
 </script>
 
 <style scoped lang="scss">

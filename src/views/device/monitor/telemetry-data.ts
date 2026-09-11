@@ -18,7 +18,13 @@ export interface TelemetrySnapshot {
       contentService: string
       aiService: string
     }
-    info: { systemVersion: string; cpuModel: string; arch: string; ipAddress: string }
+    info: {
+      systemVersion: string
+      cpuModel: string
+      gpuModel: string
+      arch: string
+      ipAddress: string
+    }
     metrics: Record<string, TelemetryMetric>
   }
 }

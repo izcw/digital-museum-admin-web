@@ -25,6 +25,7 @@ const plannedPages = new Set([
   '/ai/knowledge/base',
   '/ai/knowledge/prompt',
   '/ai/knowledge/script',
+  '/ai/knowledge/tag',
   '/ai/digital/avatar',
   '/ai/digital/voice',
   '/ai/digital/dialogue',
