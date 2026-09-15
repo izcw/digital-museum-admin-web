@@ -1,4 +1,102 @@
-<template><div class="art-full-height"><ArtSearchBar v-model="search" :items="searchItems" @search="applySearch" @reset="reset"/><ElCard class="art-table-card" shadow="never"><ArtTableHeader v-model:columns="columnChecks" @refresh="refresh"><template #left><ElButton type="primary" @click="edit()">新增标签</ElButton></template></ArtTableHeader><ArtTable :data="filtered" :columns="columns"/></ElCard><ElDialog v-model="visible" :title="form.id?'编辑标签':'新增标签'" width="520px" align-center><ElForm label-width="80px"><ElFormItem label="标签名称"><ElInput v-model="form.name" maxlength="30"/></ElFormItem><ElFormItem label="标签颜色"><ElColorPicker v-model="form.color"/><span class="color-value">{{form.color}}</span></ElFormItem><ElFormItem label="说明"><ElInput v-model="form.remark" type="textarea" :rows="3" maxlength="120"/></ElFormItem></ElForm><template #footer><ElButton @click="visible=false">取消</ElButton><ElButton type="primary" @click="save">保存</ElButton></template></ElDialog></div></template>
+<template>
+  <div class="art-full-height"
+    ><div class="tag-toolbar"
+      ><ElInput v-model="keyword" clearable placeholder="搜索标签" style="width: 260px" /><ElButton
+        type="primary"
+        @click="edit()"
+        >新增标签</ElButton
+      ></div
+    ><ElCard
+      ><ElTable :data="filtered"
+        ><ElTableColumn label="标签" min-width="180"
+          ><template #default="{ row }"
+            ><ElTag :style="{ borderColor: row.color, color: row.color }">{{
+              row.name
+            }}</ElTag></template
+          ></ElTableColumn
+        ><ElTableColumn label="关联资源" width="120"
+          ><template #default="{ row }">{{ count(row.name) }}</template></ElTableColumn
+        ><ElTableColumn prop="remark" label="说明" /><ElTableColumn label="操作" width="150"
+          ><template #default="{ row }"
+            ><ElButton link type="primary" @click="edit(row)">编辑</ElButton
+            ><ElButton link type="danger" @click="remove(row)">删除</ElButton></template
+          ></ElTableColumn
+        ></ElTable
+      ></ElCard
+    ><ElDialog
+      v-model="visible"
+      :title="form.id ? '编辑标签' : '新增标签'"
+      width="520px"
+      :close-on-click-modal="false"
+      ><ElForm label-width="90px"
+        ><ElFormItem label="名称" required
+          ><ElInput v-model="form.name" maxlength="30" /></ElFormItem
+        ><ElFormItem label="颜色"><ElColorPicker v-model="form.color" /></ElFormItem
+        ><ElFormItem label="说明"
+          ><ElInput v-model="form.remark" type="textarea" :rows="3" /></ElFormItem></ElForm
+      ><template #footer
+        ><ElButton @click="visible = false">取消</ElButton
+        ><ElButton type="primary" @click="save">保存</ElButton></template
+      ></ElDialog
+    ></div
+  >
+</template>
 <script setup lang="ts">
-import {ElMessage,ElMessageBox,ElTag} from 'element-plus';import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue';import{useTableColumns}from'@/hooks/core/useTableColumns';defineOptions({name:'AiKnowledgeTag'});type Tag={id:number;name:string;color:string;count:number;remark:string;updatedAt:string};const rows=ref<Tag[]>([{id:1,name:'青铜器',color:'#2563eb',count:38,remark:'青铜器专题资源',updatedAt:'2026-09-11 10:20'},{id:2,name:'已审核',color:'#16a34a',count:126,remark:'已通过内容审核',updatedAt:'2026-09-10 17:30'},{id:3,name:'学生适读',color:'#9333ea',count:64,remark:'适合小学阶段阅读',updatedAt:'2026-09-09 13:00'}]);const search=ref<Record<string,any>>({}),keyword=ref(''),visible=ref(false),form=reactive<Partial<Tag>>({});const searchItems=[{key:'keyword',label:'标签名称',type:'input',props:{clearable:true,placeholder:'搜索标签'}}];const filtered=computed(()=>rows.value.filter(r=>!keyword.value||r.name.includes(keyword.value)));const{columns,columnChecks}=useTableColumns<Tag>(()=>[{type:'globalIndex',label:'序号',width:70},{prop:'name',label:'标签',minWidth:180,formatter:r=>h(ElTag,{color:r.color,style:{color:'#fff',border:'none'}},()=>r.name)},{prop:'count',label:'关联资源',width:110},{prop:'remark',label:'说明',minWidth:240},{prop:'updatedAt',label:'更新时间',width:170},{prop:'operation',label:'操作',width:120,fixed:'right',formatter:r=>h('div',[h(ArtButtonTable,{type:'edit',onClick:()=>edit(r)}),h(ArtButtonTable,{type:'delete',onClick:()=>remove(r)})])}]);function applySearch(v:Record<string,any>){keyword.value=v.keyword||''}function reset(){search.value={};keyword.value=''}function refresh(){ElMessage.success('数据已刷新')}function edit(r?:Tag){Object.assign(form,{id:undefined,name:'',color:'#409eff',remark:''},r||{});visible.value=true}function save(){if(!form.name?.trim())return void ElMessage.warning('请输入标签名称');if(form.id){const i=rows.value.findIndex(r=>r.id===form.id);rows.value[i]={...rows.value[i],...form,updatedAt:'刚刚'} as Tag}else rows.value.unshift({...form,id:Math.max(...rows.value.map(r=>r.id))+1,count:0,updatedAt:'刚刚'} as Tag);visible.value=false;ElMessage.success('标签已保存')}async function remove(r:Tag){if(r.count)return void ElMessage.warning('有关联资源的标签不能删除');try{await ElMessageBox.confirm(`确定删除“${r.name}”吗？`,'删除标签',{type:'warning'});rows.value=rows.value.filter(v=>v.id!==r.id)}catch{/*取消*/}}
-</script><style scoped>.color-value{margin-left:10px;color:var(--art-text-gray-500)}</style>
+  import { ElMessage, ElMessageBox } from 'element-plus'
+  import { aiState, clone } from '../../shared/ai-store'
+  defineOptions({ name: 'AiKnowledgeTag' })
+  type Tag = (typeof aiState.tags)[number]
+  const keyword = ref(''),
+    visible = ref(false),
+    form = reactive<Partial<Tag>>({})
+  const allResources = computed(() => Object.values(aiState.resourcesByBase).flat())
+  const filtered = computed(() => aiState.tags.filter((t) => t.name.includes(keyword.value.trim())))
+  const count = (name: string) =>
+    allResources.value.filter((r) => r.tags?.split(',').includes(name)).length
+  function edit(row?: Tag) {
+    Object.assign(
+      form,
+      { id: undefined, name: '', color: '#409eff', remark: '' },
+      row ? clone(row) : {}
+    )
+    visible.value = true
+  }
+  function save() {
+    const name = form.name?.trim()
+    if (!name) return void ElMessage.warning('请输入标签名称')
+    if (aiState.tags.some((t) => t.id !== form.id && t.name === name))
+      return void ElMessage.warning('标签名称已存在')
+    const existing = aiState.tags.find((t) => t.id === form.id)
+    if (existing) {
+      const old = existing.name
+      allResources.value.forEach((r) => {
+        r.tags = (r.tags?.split(',') || []).map((n: string) => (n === old ? name : n)).join(',')
+      })
+      Object.assign(existing, form, { name })
+    } else
+      aiState.tags.push({
+        id: Math.max(0, ...aiState.tags.map((t) => t.id)) + 1,
+        name,
+        color: form.color || '#409eff',
+        remark: form.remark || ''
+      })
+    visible.value = false
+    ElMessage.success('标签已保存，资源引用同步更新')
+  }
+  async function remove(row: Tag) {
+    if (count(row.name)) return void ElMessage.warning('请先在资源中移除该标签')
+    try {
+      await ElMessageBox.confirm(`删除标签“${row.name}”？`, '删除标签')
+      aiState.tags = aiState.tags.filter((t) => t.id !== row.id)
+    } catch {
+      /* 用户取消 */
+    }
+  }
+</script>
+<style scoped>
+  .tag-toolbar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+</style>

@@ -2,6 +2,9 @@ export type LlmStatus = 'enabled' | 'disabled'
 
 /** OpenAI Compatible 模型配置 */
 export interface LlmModel {
+  purpose?: string
+  provider?: string
+  apiKeyConfigured?: boolean
   id: number
   name: string
   model: string

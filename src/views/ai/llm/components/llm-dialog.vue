@@ -1,140 +1,73 @@
 <template>
   <ElDialog
     v-model="dialogVisible"
-    :title="type === 'add' ? '新增大模型' : '编辑大模型'"
-    width="760px"
-    align-center
+    :title="type === 'add' ? '新增模型' : '编辑模型'"
+    width="min(860px, 94vw)"
     :close-on-click-modal="false"
-    @closed="formRef?.resetFields()"
+    align-center
   >
-    <ElAlert
-      title="按 OpenAI Compatible API 规范配置，Base URL 通常以 /v1 结尾。"
-      type="info"
-      :closable="false"
-      show-icon
-      class="model-alert"
-    />
-
-    <ElForm ref="formRef" :model="formData" :rules="rules" label-width="110px">
-      <ElRow :gutter="20">
-        <ElCol :span="12">
-          <ElFormItem label="配置名称" prop="name">
-            <ElInput v-model="formData.name" maxlength="60" placeholder="如 OpenAI GPT-4.1" />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Model" prop="model">
-            <ElInput v-model="formData.model" maxlength="100" placeholder="如 gpt-4.1" />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="24">
-          <ElFormItem label="Base URL" prop="baseUrl">
-            <ElInput
-              v-model="formData.baseUrl"
-              maxlength="255"
-              placeholder="https://api.openai.com/v1"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="24">
-          <ElFormItem label="API Key" prop="apiKey">
-            <ElInput
-              v-model="formData.apiKey"
-              type="password"
-              maxlength="255"
-              autocomplete="new-password"
-              placeholder="请输入 API Key"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Max Tokens" prop="maxTokens">
-            <ElInputNumber
-              v-model="formData.maxTokens"
-              :min="1"
-              :max="200000"
-              :step="1024"
-              class="!w-full"
-              controls-position="right"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="超时时间" prop="timeout">
-            <ElInputNumber
-              v-model="formData.timeout"
-              :min="1"
-              :max="600"
-              class="!w-full"
-              controls-position="right"
-            >
-              <template #suffix>秒</template>
-            </ElInputNumber>
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Temperature" prop="temperature">
-            <ElInputNumber
+    <ElForm ref="formRef" :model="formData" :rules="rules" label-width="140px">
+      <ElFormItem label="配置名称" prop="name"
+        ><ElInput v-model="formData.name" maxlength="60"
+      /></ElFormItem>
+      <ElFormItem label="模型用途"
+        ><ElRadioGroup v-model="formData.purpose"
+          ><ElRadioButton value="chat">对话</ElRadioButton
+          ><ElRadioButton value="embedding">向量化</ElRadioButton></ElRadioGroup
+        ></ElFormItem
+      >
+      <ElFormItem label="连接方式"
+        ><ElSelect v-model="formData.provider"
+          ><ElOption label="OpenAI Compatible" value="OpenAI Compatible" /><ElOption
+            label="本地模型服务"
+            value="本地模型服务" /></ElSelect
+      ></ElFormItem>
+      <ElFormItem label="模型标识" prop="model"
+        ><ElInput v-model="formData.model" placeholder="服务提供方的模型标识"
+      /></ElFormItem>
+      <ElFormItem label="服务地址" prop="baseUrl"
+        ><ElInput v-model="formData.baseUrl" placeholder="https://example.com/v1"
+      /></ElFormItem>
+      <ElFormItem label="API Key" prop="apiKey"
+        ><ElInput
+          v-model="formData.apiKey"
+          type="password"
+          autocomplete="new-password"
+          :placeholder="modelData?.apiKeyConfigured ? '留空保留已配置状态' : '请输入凭据'"
+        /><small>前端预览不保存密钥到浏览器存储，也不向模型服务发送请求。</small></ElFormItem
+      >
+      <ElCollapse
+        ><ElCollapseItem title="高级调用设置" name="advanced"
+          ><ElFormItem v-if="formData.purpose === 'chat'" label="最大输出 Token"
+            ><ElInputNumber v-model="formData.maxTokens" :min="1" :max="200000" /></ElFormItem
+          ><ElFormItem v-if="formData.purpose === 'chat'" label="Temperature"
+            ><ElInputNumber
               v-model="formData.temperature"
               :min="0"
               :max="2"
-              :step="0.1"
-              :precision="1"
-              class="!w-full"
-              controls-position="right"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="12">
-          <ElFormItem label="Top P" prop="topP">
-            <ElInputNumber
-              v-model="formData.topP"
-              :min="0"
-              :max="1"
-              :step="0.1"
-              :precision="1"
-              class="!w-full"
-              controls-position="right"
-            />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="8">
-          <ElFormItem label="流式响应">
-            <ElSwitch v-model="formData.stream" />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="8">
-          <ElFormItem label="默认模型">
-            <ElSwitch v-model="formData.isDefault" />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="8">
-          <ElFormItem label="启用状态" prop="status">
-            <ElSwitch v-model="formData.status" active-value="enabled" inactive-value="disabled" />
-          </ElFormItem>
-        </ElCol>
-        <ElCol :span="24">
-          <ElFormItem label="备注">
-            <ElInput
-              v-model="formData.remark"
-              type="textarea"
-              :rows="3"
-              maxlength="300"
-              show-word-limit
-              placeholder="请输入模型用途或其他说明"
-            />
-          </ElFormItem>
-        </ElCol>
-      </ElRow>
-    </ElForm>
-
-    <template #footer>
-      <ElButton @click="dialogVisible = false">取消</ElButton>
-      <ElButton type="primary" :loading="loading" @click="handleSubmit">保存</ElButton>
-    </template>
+              :step="0.1" /></ElFormItem
+          ><ElFormItem v-if="formData.purpose === 'chat'" label="Top P"
+            ><ElInputNumber v-model="formData.topP" :min="0" :max="1" :step="0.1" /></ElFormItem
+          ><ElFormItem label="超时（秒）"
+            ><ElInputNumber v-model="formData.timeout" :min="1" :max="600" /></ElFormItem
+          ><ElFormItem v-if="formData.purpose === 'chat'" label="流式响应"
+            ><ElSwitch v-model="formData.stream" /></ElFormItem></ElCollapseItem
+      ></ElCollapse>
+      <ElFormItem label="设为此用途默认"><ElSwitch v-model="formData.isDefault" /></ElFormItem
+      ><ElFormItem label="可用状态"
+        ><ElSwitch
+          v-model="formData.status"
+          active-value="enabled"
+          inactive-value="disabled" /></ElFormItem
+      ><ElFormItem label="备注"
+        ><ElInput v-model="formData.remark" type="textarea" :rows="2"
+      /></ElFormItem> </ElForm
+    ><template #footer
+      ><ElButton @click="dialogVisible = false">取消</ElButton
+      ><ElButton type="primary" :loading="loading" @click="handleSubmit">保存</ElButton></template
+    >
   </ElDialog>
 </template>
-
 <script setup lang="ts">
   import { type FormInstance, type FormRules } from 'element-plus'
   import type { LlmModel, LlmModelMutation } from '../types'
@@ -158,6 +91,9 @@
   })
 
   const createEmptyForm = (): LlmModelMutation => ({
+    purpose: 'chat',
+    provider: 'OpenAI Compatible',
+    apiKeyConfigured: false,
     name: '',
     model: '',
     baseUrl: 'https://api.openai.com/v1',
@@ -181,7 +117,7 @@
       { required: true, message: '请输入 Base URL', trigger: 'blur' },
       { type: 'url', message: '请输入正确的 URL', trigger: 'blur' }
     ],
-    apiKey: [{ required: true, message: '请输入 API Key', trigger: 'blur' }],
+
     maxTokens: [{ required: true, message: '请输入 Max Tokens', trigger: 'change' }],
     timeout: [{ required: true, message: '请输入超时时间', trigger: 'change' }],
     temperature: [{ required: true, message: '请输入 Temperature', trigger: 'change' }],
@@ -194,7 +130,7 @@
       if (!visible) return
       const nextData =
         props.type === 'edit' && props.modelData ? props.modelData : createEmptyForm()
-      Object.assign(formData, createEmptyForm(), nextData)
+      Object.assign(formData, createEmptyForm(), nextData, { apiKey: '' })
       nextTick(() => formRef.value?.clearValidate())
     }
   )
@@ -206,7 +142,8 @@
       name: formData.name.trim(),
       model: formData.model.trim(),
       baseUrl: formData.baseUrl.trim().replace(/\/$/, ''),
-      apiKey: formData.apiKey.trim(),
+      apiKey: (formData.apiKey || '').trim(),
+      apiKeyConfigured: Boolean(formData.apiKey?.trim() || props.modelData?.apiKeyConfigured),
       remark: formData.remark.trim()
     })
   }
