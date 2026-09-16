@@ -676,6 +676,17 @@
     >
       <ElForm :model="resourceForm" label-width="90px"
         ><ElFormItem label="资源名称"><ElInput v-model="resourceForm.name" /></ElFormItem
+        ><ElFormItem label="资料出处"
+          ><ElInput
+            v-model="resourceForm.source"
+            placeholder="出版物、馆藏说明或原始资料地址" /></ElFormItem
+        ><ElFormItem label="关联对象"
+          ><ElInput
+            v-model="resourceForm.relatedObject"
+            placeholder="文物或文化主题名称" /></ElFormItem
+        ><ElFormItem label="展示权限"
+          ><ElCheckbox v-model="resourceForm.allowDisplay">允许客户端展示</ElCheckbox
+          ><ElCheckbox v-model="resourceForm.allowDownload">允许客户端下载</ElCheckbox></ElFormItem
         ><ElFormItem label="资源类型"
           ><ElTag effect="plain">{{
             resourceTypeName(resourceForm.type || 'markdown')
@@ -783,6 +794,7 @@
 </template>
 
 <script setup lang="ts">
+  import './scene-store'
   import {
     ElAvatar,
     ElButton,

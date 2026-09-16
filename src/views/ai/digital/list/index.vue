@@ -1,645 +1,769 @@
 <template>
-  <div class="digital-page art-full-height">
-    <ElAlert
-      title="管理端预览：配置与发布记录保存在当前浏览器，不会下发设备。"
-      type="info"
-      :closable="false"
+  <main class="workbench art-full-height">
+    <GuideTable
+      :rows="guideRows"
+      @add="addGuide"
+      @edit="editGuideById"
+      @configure="openGuideConfiguration"
+      @publish="openGuidePublication"
+      @remove="deleteGuideRow"
     />
-    <div class="digital-toolbar"
-      ><ElInput
-        v-model="keyword"
-        clearable
-        placeholder="搜索数字人"
-        style="width: 260px"
-      /><ElSelect v-model="listStatus" style="width: 140px"
-        ><ElOption label="使用中 / 草稿" value="active" /><ElOption
-          label="已归档"
-          value="archived" /></ElSelect
-      ><ElButton type="primary" @click="edit()">新建数字人</ElButton></div
-    >
-    <ElCard shadow="never">
-      <ElTable :data="filtered">
-        <ElTableColumn label="数字人" min-width="220"
-          ><template #default="{ row }"
-            ><div class="identity"
-              ><ElAvatar :src="row.avatar" :size="44" /><div
-                ><b>{{ row.name }}</b
-                ><small>{{ row.role }}</small></div
-              ></div
-            ></template
-          ></ElTableColumn
-        >
-        <ElTableColumn label="草稿配置" min-width="230"
-          ><template #default="{ row }"
-            ><div>{{ modelName(row.modelId) }}</div
-            ><small>{{
-              (row.knowledgeIds || []).map(knowledgeName).join('、') || '未绑定知识库'
-            }}</small></template
-          ></ElTableColumn
-        >
-        <ElTableColumn label="发布状态" width="160"
-          ><template #default="{ row }"
-            ><ElTag :type="row.publishedVersion ? 'success' : 'info'">{{
-              row.publishedVersion ? `已发布 V${row.publishedVersion}` : '未发布'
-            }}</ElTag
-            ><small v-if="isDirty(row)">有未发布修改</small></template
-          ></ElTableColumn
-        >
-        <ElTableColumn label="可用状态" width="120"
-          ><template #default="{ row }"
-            ><ElSwitch
-              :model-value="row.status === 'enabled'"
-              :disabled="!row.publishedVersion || row.archived"
-              @change="row.status = $event ? 'enabled' : 'disabled'" /></template
-        ></ElTableColumn>
-        <ElTableColumn prop="updatedAt" label="更新时间" width="170"
-          ><template #default="{ row }">{{
-            formatDateTime(row.updatedAt)
-          }}</template></ElTableColumn
-        >
-        <ElTableColumn label="操作" width="250" fixed="right"
-          ><template #default="{ row }"
-            ><ElButton link type="primary" @click="edit(row)">编辑草稿</ElButton
-            ><ElButton link type="primary" @click="openRelease(row)">发布 / 版本</ElButton
-            ><ElButton v-if="row.archived" link type="primary" @click="row.archived = false"
-              >恢复</ElButton
-            ><ElButton v-else-if="row.publishedVersion" link type="warning" @click="archive(row)"
-              >归档</ElButton
-            ><ElButton v-else link type="danger" @click="remove(row)">删除</ElButton></template
-          ></ElTableColumn
-        >
-      </ElTable>
-    </ElCard>
     <ElDialog
-      v-model="editorVisible"
-      class="digital-config-dialog"
-      :title="form.id ? '编辑数字人草稿' : '新建数字人'"
+      v-model="guideEditorOpen"
+      :title="
+        sceneState.identities.some((p) => p.id === guideDraft.id) ? '编辑数字人' : '新增数字人'
+      "
+      width="min(1000px, 94vw)"
+      :close-on-click-modal="false"
+      :before-close="closeGuideEditor"
+    >
+      <ElAlert title="保存仅修改草稿。发布后，学校客户端才能使用新版本。" :closable="false" />
+      <ElForm ref="guideFormRef" :model="guideDraft" :rules="guideFormRules" label-width="100px"
+        ><ElFormItem label="头像"
+          ><GuideAvatarField v-if="guideEditorOpen" v-model="guideDraft.avatar" /></ElFormItem
+        ><ElFormItem label="名称" prop="name"
+          ><ElInput v-model="guideDraft.name" maxlength="40" /></ElFormItem
+        ><ElFormItem label="角色设定" prop="role"
+          ><ElInput v-model="guideDraft.role" type="textarea" :rows="3" /></ElFormItem
+        ><ElFormItem label="音色" prop="voice"><ElInput v-model="guideDraft.voice" /></ElFormItem
+        ><ElFormItem label="语速"
+          ><ElInputNumber v-model="guideDraft.rate" :min="0.5" :max="1.5" :step="0.1" /></ElFormItem
+        ><ElFormItem label="全身资源"
+          ><ElInput v-model="guideDraft.full" placeholder="资源路径" /></ElFormItem
+        ><ElFormItem label="半身资源"
+          ><ElInput v-model="guideDraft.half" placeholder="同一数字人的半身素材" /></ElFormItem
+        ><ElFormItem label="精灵资源"
+          ><ElInput v-model="guideDraft.sprite" placeholder="同一数字人的精灵素材" /></ElFormItem
+      ></ElForm>
+      <template #footer
+        ><ElButton @click="closeGuideEditor()">取消</ElButton
+        ><ElButton type="primary" @click="saveGuideDraft">保存草稿</ElButton></template
+      >
+    </ElDialog>
+    <ElDialog
+      v-model="guidePublishOpen"
+      :title="(editingGuide?.name || '数字人') + ' · 发布与版本'"
       width="min(1100px, 94vw)"
       :close-on-click-modal="false"
-      :before-close="closeEditor"
-      destroy-on-close
-    >
-      <ElAlert
-        title="保存仅更新草稿；在“发布 / 版本”中检查并发布后，才形成新的生效配置。"
-        :closable="false"
-        type="info"
-      />
-      <ElTabs v-model="tab">
-        <ElTabPane label="基础资料" name="base"
-          ><ElForm label-width="110px">
-            <ElFormItem label="数字人名称" required
-              ><ElInput v-model="form.name" maxlength="60"
-            /></ElFormItem>
-            <ElFormItem label="形象"
-              ><div class="avatar-options"
-                ><ElAvatar :src="form.avatar" :size="72" /><ElRadioGroup v-model="form.avatar"
-                  ><ElRadioButton v-for="(avatar, i) in avatars" :key="avatar" :value="avatar"
-                    >形象 {{ i + 1 }}</ElRadioButton
-                  ></ElRadioGroup
-                ></div
-              ></ElFormItem
-            >
-            <ElFormItem label="角色类型" required
-              ><ElSelect v-model="form.role"
-                ><ElOption
-                  v-for="role in ['博物馆讲解员', '历史人物', '课堂助教']"
-                  :key="role"
-                  :value="role"
-                  :label="role" /></ElSelect
-            ></ElFormItem>
-            <ElFormItem label="角色介绍"
-              ><ElInput
-                v-model="form.description"
-                type="textarea"
-                :rows="4"
-                maxlength="1000"
-                show-word-limit
-            /></ElFormItem>
-            <ElFormItem label="备注"
-              ><ElInput v-model="form.remark" type="textarea" :rows="2"
-            /></ElFormItem> </ElForm
-        ></ElTabPane>
-        <ElTabPane label="AI 配置" name="ai"
-          ><ElForm label-width="110px">
-            <ElFormItem label="对话模型" required
-              ><ElSelect v-model="form.modelId" filterable placeholder="选择模型管理中的对话模型"
-                ><ElOption
-                  v-for="m in aiState.models.filter((m) => m.purpose === 'chat')"
-                  :key="m.id"
-                  :value="m.id"
-                  :label="m.name + (m.status === 'disabled' ? '（已停用）' : '')"
-                  :disabled="m.status === 'disabled'" /></ElSelect
-            ></ElFormItem>
-            <ElFormItem label="知识库" required
-              ><ElSelect
-                v-model="form.knowledgeIds"
-                multiple
-                filterable
-                placeholder="支持多个知识库"
-                ><ElOption
-                  v-for="k in aiState.knowledge"
-                  :key="k.id"
-                  :value="k.id"
-                  :label="k.name"
-                  :disabled="k.status === 'disabled'" /></ElSelect
-            ></ElFormItem>
-            <ElFormItem label="提示词" required
-              ><ElSelect
-                v-model="form.promptId"
-                filterable
-                @change="
-                  form.promptVersion = aiState.prompt.find(
-                    (p) => p.id === form.promptId
-                  )?.publishedVersion
-                "
-                ><ElOption
-                  v-for="p in aiState.prompt"
-                  :key="p.id"
-                  :value="p.id"
-                  :label="p.name"
-                  :disabled="p.status === 'disabled' || !p.publishedVersion" /></ElSelect
-            ></ElFormItem>
-            <ElFormItem label="固定版本" required
-              ><ElSelect v-model="form.promptVersion"
-                ><ElOption
-                  v-for="r in selectedPrompt?.releases || []"
-                  :key="r.version"
-                  :value="r.version"
-                  :label="`V${r.version} · ${r.note}`" /></ElSelect
-              ><p class="hint">发布后固定此版本，提示词更新不会自动替换已发布配置。</p></ElFormItem
-            >
-            <ElFormItem label="适用年龄段"
-              ><ElSelect v-model="form.ageGroup"
-                ><ElOption
-                  v-for="age in ['全年龄', '小学低年级', '小学高年级', '初中', '高中及以上']"
-                  :key="age"
-                  :value="age"
-                  :label="age" /></ElSelect
-            ></ElFormItem>
-            <ElFormItem label="回答长度"
-              ><ElRadioGroup v-model="form.answerLength"
+      ><GuidePublishing v-if="guidePublishOpen && editingGuide" :guide-id="editingGuideId"
+    /></ElDialog>
+    <ElDialog
+      v-model="settingsOpen"
+      :title="configurationName + ' · 配置'"
+      width="min(1200px, 96vw)"
+      class="management-dialog"
+      align-center
+      :close-on-click-modal="false"
+      ><ElTabs v-model="tab">
+        <ElTabPane label="回答设置" name="scenes">
+          <ElAlert
+            title="先选择使用位置，再选择回答用的知识库。这里的修改自动保存为当前数字人的草稿，发布后才生效。"
+            :closable="false"
+          />
+          <ElForm label-width="130px" class="simple-settings">
+            <ElFormItem label="在哪里使用"
+              ><ElRadioGroup v-model="selected"
                 ><ElRadioButton
-                  v-for="length in ['简短', '适中', '详细']"
-                  :key="length"
-                  :value="length"
-                  >{{ length }}</ElRadioButton
+                  v-for="scene in activeConfig.scenes"
+                  :key="scene.id"
+                  :value="scene.id"
+                  >{{ scene.name }}</ElRadioButton
                 ></ElRadioGroup
               ></ElFormItem
             >
-          </ElForm></ElTabPane
-        >
-        <ElTabPane label="欢迎与异常话术" name="scripts"
-          ><ElAlert
-            title="优先使用这里指定的话术；未指定时，按数字人专属 → 全局默认匹配。"
-            :closable="false"
-            type="info"
-          />
-          <ElForm label-width="140px"
-            ><ElFormItem v-for="event in scriptEvents" :key="event.key" :label="event.label">
-              <div class="script-choice"
-                ><ElSelect v-model="form.scripts[event.key]" clearable placeholder="自动匹配"
+            <ElFormItem label="使用哪些知识"
+              ><div class="setting-field"
+                ><ElSelect v-model="current.knowledgeIds" multiple placeholder="选择知识库"
                   ><ElOption
-                    v-for="s in scriptOptions(event.key)"
-                    :key="s.id"
-                    :value="s.id"
-                    :label="s.name" /></ElSelect
-                ><p class="hint">{{
-                  resolveScript(form, event.key)?.content ||
-                  '未匹配到有效话术，请在话术管理中配置。'
-                }}</p></div
+                    v-for="base in aiState.knowledge.filter((k) => k.status === 'enabled')"
+                    :key="base.id"
+                    :value="base.id"
+                    :label="base.name" /></ElSelect
+                ><small>数字人优先根据这些知识库回答问题。</small></div
+              ></ElFormItem
+            >
+            <ElFormItem label="使用哪个模型"
+              ><ElSelect v-model="current.modelId"
+                ><ElOption
+                  v-for="model in aiState.models.filter(
+                    (m) => m.status === 'enabled' && m.purpose !== 'embedding'
+                  )"
+                  :key="model.id"
+                  :value="model.id"
+                  :label="model.name" /></ElSelect
+            ></ElFormItem>
+            <ElFormItem label="数字人展示方式"
+              ><ElSelect v-model="current.form" :disabled="current.id === 'home'"
+                ><ElOption
+                  v-for="(name, id) in forms"
+                  :key="id"
+                  :label="name"
+                  :value="id"
+                  :disabled="current.id !== 'home' && id === 'full'" /></ElSelect
+            ></ElFormItem>
+            <ElFormItem label="可以打断讲解"
+              ><ElSwitch v-model="current.interrupt" /><span class="field-hint"
+                >孩子提问后，可继续原来的讲解。</span
+              ></ElFormItem
+            >
+          </ElForm>
+          <ElCollapse
+            ><ElCollapseItem title="更多设置（通常保留默认即可）" name="advanced"
+              ><p>需要调整回答风格、资料不足时的话术、图片视频或对话记忆时，再修改以下内容。</p
+              ><ElButton @click="editScene">调整回答规则和对话设置</ElButton><ElDivider />
+              <header
+                ><b>允许查询的外部资料来源</b
+                ><ElButton @click="addSource">添加来源</ElButton></header
               >
-            </ElFormItem></ElForm
+              <p>默认只使用站内知识。需要联网补充时，先配置来源，再在回答规则中启用。</p>
+              <ElTable :data="activeConfig.sources" empty-text="尚未添加外部来源"
+                ><ElTableColumn label="来源名称"
+                  ><template #default="{ row }"
+                    ><ElInput v-model="row.name" /></template></ElTableColumn
+                ><ElTableColumn label="网址"
+                  ><template #default="{ row }"
+                    ><ElInput v-model="row.url" placeholder="https://…" /></template></ElTableColumn
+                ><ElTableColumn label="启用" width="90"
+                  ><template #default="{ row }"
+                    ><ElSwitch
+                      v-model="row.enabled"
+                      :before-change="() => validateSource(row)" /></template></ElTableColumn
+                ><ElTableColumn width="90"
+                  ><template #default="{ row }"
+                    ><ElButton link type="danger" @click="removeSource(row.id)"
+                      >删除</ElButton
+                    ></template
+                  ></ElTableColumn
+                ></ElTable
+              >
+            </ElCollapseItem></ElCollapse
           >
         </ElTabPane>
-        <ElTabPane label="配置预演" name="test"
-          ><ElAlert
-            title="只预演配置与话术选择，不调用模型或生成真实回答。"
-            type="warning"
-            :closable="false"
-          /><ElSelect v-model="testEvent" style="margin: 16px 0"
-            ><ElOption label="正常问答配置" value="answer" /><ElOption
-              v-for="e in scriptEvents"
-              :key="e.key"
-              :label="e.label"
-              :value="e.key"
-          /></ElSelect>
-          <div class="test-output" v-if="testEvent === 'answer'"
-            ><p>模型：{{ modelName(form.modelId) }}</p
-            ><p>知识库：{{ (form.knowledgeIds || []).map(knowledgeName).join('、') }}</p
-            ><p>提示词：{{ selectedPrompt?.name || '未选择' }} / V{{ form.promptVersion || '-' }}</p
-            ><p>适用年龄：{{ form.ageGroup }} · 回答长度：{{ form.answerLength }}</p></div
-          >
-          <div class="test-output" v-else
-            ><p>{{ resolveScript(form, testEvent)?.content || '无匹配话术' }}</p
-            ><small>后续动作：{{ actionName(resolveScript(form, testEvent)?.action) }}</small></div
-          >
-          <ElAlert
-            v-for="issue in digitalIssues(form)"
-            :key="issue"
-            :title="issue"
-            type="warning"
-            :closable="false"
-            style="margin-top: 8px"
-          />
-        </ElTabPane>
-      </ElTabs>
-      <template #footer
-        ><ElButton @click="closeEditor(() => (editorVisible = false))">取消</ElButton
-        ><ElButton type="primary" @click="saveDraft">保存草稿</ElButton></template
-      >
-    </ElDialog>
+        <ElTabPane label="讲解内容" name="content"
+          ><header
+            ><p>添加要讲解的文物或主题，填写资料和讲解稿。</p
+            ><ElButton type="primary" @click="editContent()">新增讲解</ElButton></header
+          ><ElTable :data="activeConfig.narrations" empty-text="新增文物或文化主题，关联知识库"
+            ><ElTableColumn prop="name" label="文物 / 主题" /><ElTableColumn
+              prop="kind"
+              label="类型"
+            /><ElTableColumn label="状态"
+              ><template #default="{ row }">{{
+                row.reviewed ? '资料已确认' : '草稿'
+              }}</template></ElTableColumn
+            ><ElTableColumn label="操作"
+              ><template #default="{ row }"
+                ><ElButton link type="primary" @click="editContent(row)">编辑</ElButton
+                ><ElButton link @click="previewContent(row)">预览</ElButton
+                ><ElButton link type="danger" @click="removeContent(row.id)"
+                  >删除</ElButton
+                ></template
+              ></ElTableColumn
+            ></ElTable
+          ><ElCollapse
+            ><ElCollapseItem title="讲解顺序模板（可选）" name="templates"
+              ><div class="cards"
+                ><ElCard v-for="t in activeConfig.templates" :key="t.id" shadow="never"
+                  ><template #header>{{ t.name }}模板</template
+                  ><ElInput v-model="t.content" type="textarea" :rows="8" /><p
+                    >每行一个段落，生成时仅使用已确认事实。</p
+                  ></ElCard
+                ></div
+              ></ElCollapseItem
+            ></ElCollapse
+          ></ElTabPane
+        >
+      </ElTabs></ElDialog
+    >
     <ElDialog
-      v-model="releaseVisible"
-      class="digital-config-dialog"
-      title="数字人发布与版本"
+      v-model="editing"
+      :title="draft.name + ' · 更多设置'"
       width="min(1100px, 94vw)"
       :close-on-click-modal="false"
+      :before-close="closeEditor"
+      align-center
+      ><ElTabs
+        ><ElTabPane label="模型与知识"
+          ><ElForm label-width="150px"
+            ><ElFormItem label="展示形态"
+              ><ElSelect v-model="draft.form" :disabled="draft.id === 'home'"
+                ><ElOption
+                  v-for="(name, id) in forms"
+                  :key="id"
+                  :value="id"
+                  :label="name" /></ElSelect></ElFormItem
+            ><ElFormItem label="对话模型"
+              ><ElSelect v-model="draft.modelId"
+                ><ElOption
+                  v-for="m in aiState.models.filter(
+                    (m) => m.status === 'enabled' && m.purpose !== 'embedding'
+                  )"
+                  :key="m.id"
+                  :value="m.id"
+                  :label="m.name" /></ElSelect></ElFormItem
+            ><ElFormItem label="知识库"
+              ><ElSelect v-model="draft.knowledgeIds" multiple
+                ><ElOption
+                  v-for="k in aiState.knowledge.filter((k) => k.status === 'enabled')"
+                  :key="k.id"
+                  :value="k.id"
+                  :label="k.name" /></ElSelect></ElFormItem
+            ><ElFormItem label="提示词"
+              ><ElSelect v-model="draft.promptId" @change="changePrompt"
+                ><ElOption
+                  v-for="p in aiState.prompt.filter((p) => p.status === 'enabled')"
+                  :key="p.id"
+                  :value="p.id"
+                  :label="p.name" /></ElSelect></ElFormItem
+            ><ElFormItem label="固定提示词版本"
+              ><ElSelect v-model="draft.promptVersion"
+                ><ElOption
+                  v-for="r in promptVersions"
+                  :key="r.version"
+                  :value="r.version"
+                  :label="'V' + r.version" /></ElSelect></ElFormItem
+            ><ElFormItem v-if="draft.id !== 'home'" label="讲解模板"
+              ><ElSelect v-model="draft.templateId"
+                ><ElOption
+                  v-for="t in activeConfig.templates"
+                  :key="t.id"
+                  :value="t.id"
+                  :label="t.name" /></ElSelect></ElFormItem
+            ><ElFormItem label="允许外部补充查询"><ElSwitch v-model="draft.external" /></ElFormItem
+            ><ElFormItem v-if="draft.external" label="授权来源"
+              ><ElSelect v-model="draft.sourceIds" multiple
+                ><ElOption
+                  v-for="s in activeConfig.sources.filter((s) => s.enabled)"
+                  :key="s.id"
+                  :value="s.id"
+                  :label="s.name" /></ElSelect></ElFormItem></ElForm></ElTabPane
+        ><ElTabPane label="上下文与媒体"
+          ><ElForm label-width="180px"
+            ><ElFormItem label="闲置清理（分钟）"
+              ><ElInputNumber v-model="draft.idleMinutes" :min="1" :max="60" /></ElFormItem
+            ><ElFormItem label="近期对话轮数"
+              ><ElInputNumber v-model="draft.historyTurns" :min="1" :max="20" /></ElFormItem
+            ><ElFormItem label="允许打断讲解"><ElSwitch v-model="draft.interrupt" /></ElFormItem
+            ><ElFormItem label="同次访问恢复进度"><ElSwitch v-model="draft.resume" /></ElFormItem
+            ><ElFormItem label="允许图片"><ElSwitch v-model="draft.image" /></ElFormItem
+            ><ElFormItem label="允许视频"><ElSwitch v-model="draft.video" /></ElFormItem></ElForm
+          ><ElAlert
+            title="新对象创建独立会话；只有用户主动选择继续时传递问题和摘要。新访客清空历史。"
+            :closable="false" /></ElTabPane
+        ><ElTabPane label="欢迎与异常"
+          ><ElForm label-width="150px"
+            ><ElFormItem v-for="event in scriptEvents" :key="event.key" :label="event.label"
+              ><ElSelect v-model="draft.scripts[event.key]" clearable placeholder="继承全局规则"
+                ><ElOption
+                  v-for="r in aiState.script.filter(
+                    (r) => r.status === 'enabled' && r.event === event.key
+                  )"
+                  :key="r.id"
+                  :value="r.id"
+                  :label="r.name" /></ElSelect></ElFormItem></ElForm
+          ><p>场景显式配置 → 全局规则 → 客户端本地安全兜底。</p></ElTabPane
+        ></ElTabs
+      ><template #footer
+        ><ElButton @click="closeEditor()">取消</ElButton
+        ><ElButton type="primary" @click="saveScene">保存草稿</ElButton></template
+      ></ElDialog
     >
-      <template v-if="selected">
-        <ElAlert
-          title="发布仅在当前浏览器保存版本快照，不会向设备发布。依赖的模型、提示词和话术内容会保留在该版本中。"
-          type="info"
-          :closable="false"
-        />
-        <ElTabs v-model="releaseTab"
-          ><ElTabPane label="发布检查" name="check">
-            <ElDescriptions :column="2" border
-              ><ElDescriptionsItem label="数字人">{{ selected.name }}</ElDescriptionsItem
-              ><ElDescriptionsItem label="当前版本">{{
-                selected.publishedVersion ? `V${selected.publishedVersion}` : '未发布'
-              }}</ElDescriptionsItem
-              ><ElDescriptionsItem label="模型">{{
-                modelName(selected.modelId)
-              }}</ElDescriptionsItem
-              ><ElDescriptionsItem label="知识库">{{
-                (selected.knowledgeIds || []).map(knowledgeName).join('、')
-              }}</ElDescriptionsItem></ElDescriptions
-            >
-            <ElTable :data="releaseDiff" style="margin: 16px 0"
-              ><ElTableColumn prop="field" label="配置项" width="140" /><ElTableColumn
-                prop="before"
-                label="已发布" /><ElTableColumn prop="after" label="待发布"
-            /></ElTable>
-            <ElAlert
-              v-for="issue in digitalIssues(selected)"
-              :key="issue"
-              :title="issue"
-              type="error"
-              :closable="false"
-              style="margin: 8px 0"
-            />
-            <ElInput
-              v-model="publishNote"
-              type="textarea"
-              :rows="2"
-              maxlength="300"
-              show-word-limit
-              placeholder="填写本次发布说明"
-            /> </ElTabPane
-          ><ElTabPane label="历史版本" name="history">
-            <ElEmpty v-if="!selected.releases?.length" description="尚未发布" />
-            <ElTable v-else :data="selected.releases"
-              ><ElTableColumn label="版本" width="100"
-                ><template #default="{ row }">V{{ row.version }}</template></ElTableColumn
-              ><ElTableColumn prop="note" label="发布说明" /><ElTableColumn
-                label="发布时间"
-                width="180"
-                ><template #default="{ row }">{{ formatDateTime(row.at) }}</template></ElTableColumn
-              ><ElTableColumn label="操作" width="230"
-                ><template #default="{ row }"
-                  ><ElButton link @click="snapshot = row">查看快照</ElButton
-                  ><ElButton link type="primary" @click="restore(row)"
-                    >恢复为草稿</ElButton
-                  ></template
-                ></ElTableColumn
-              ></ElTable
-            >
-            <div v-if="snapshot" class="test-output"
-              ><h3>V{{ snapshot.version }} · {{ snapshot.config.name }}</h3
-              ><p>模型：{{ snapshot.resolved.model?.name }}</p
-              ><p>知识库：{{ snapshot.resolved.knowledge?.map((k: any) => k.name).join('、') }}</p
-              ><p>提示词正文：{{ snapshot.resolved.prompt?.config?.content }}</p
-              ><p v-for="event in scriptEvents" :key="event.key"
-                >{{ event.label }}：{{ snapshot.resolved.scripts?.[event.key]?.content }}</p
-              ></div
-            >
-          </ElTabPane></ElTabs
-        >
-      </template>
-      <template #footer
-        ><ElButton @click="releaseVisible = false">关闭</ElButton
-        ><ElButton
-          v-if="releaseTab === 'check'"
-          type="primary"
-          :disabled="!selected || digitalIssues(selected).length > 0 || !publishNote.trim()"
-          @click="publish"
-          >发布新版本</ElButton
-        ></template
-      >
+    <ElDialog
+      v-model="contentOpen"
+      title="编辑讲解内容"
+      class="narration-dialog"
+      width="min(1100px, 94vw)"
+      :close-on-click-modal="false"
+      :before-close="closeContent"
+      ><ElForm label-width="110px"
+        ><ElFormItem label="类型"
+          ><ElRadioGroup v-model="content.kind"
+            ><ElRadioButton value="文物">文物</ElRadioButton
+            ><ElRadioButton value="文化主题">文化主题</ElRadioButton></ElRadioGroup
+          ></ElFormItem
+        ><ElFormItem label="名称"><ElInput v-model="content.name" /></ElFormItem
+        ><ElFormItem label="知识库"
+          ><ElSelect v-model="content.knowledgeId"
+            ><ElOption
+              v-for="k in aiState.knowledge"
+              :key="k.id"
+              :value="k.id"
+              :label="k.name" /></ElSelect></ElFormItem
+        ><ElFormItem label="已知事实"
+          ><ElInput v-model="content.facts" type="textarea" :rows="3" /></ElFormItem
+        ><ElFormItem label="资料出处"><ElInput v-model="content.source" /></ElFormItem
+        ><ElFormItem label="推荐问题"
+          ><ElInput
+            v-model="content.questions"
+            type="textarea"
+            placeholder="每行一个问题" /></ElFormItem
+        ><ElFormItem label="固定讲解稿"
+          ><MarkdownEditor
+            v-if="contentOpen"
+            :key="content.id"
+            v-model="content.text" /></ElFormItem
+        ><ElFormItem label="资料已确认"
+          ><ElSwitch v-model="content.reviewed" /><small>确认后才进入发布快照</small></ElFormItem
+        ></ElForm
+      ><template #footer
+        ><ElButton @click="closeContent()">取消</ElButton
+        ><ElButton type="primary" @click="saveContent">保存</ElButton></template
+      ></ElDialog
+    >
+    <ElDialog
+      v-model="contentPreviewOpen"
+      class="narration-dialog"
+      title="预览讲解内容"
+      width="min(1100px, 94vw)"
+    >
+      <h3>{{ content.name }}</h3
+      ><p>{{ content.facts }}</p
+      ><p>资料出处：{{ content.source || '尚未填写' }}</p>
+      <MarkdownEditor
+        v-if="contentPreviewOpen"
+        :key="content.id"
+        :model-value="content.text"
+        readonly
+      />
+      <h4>推荐问题</h4><p style="white-space: pre-line">{{ content.questions || '尚未填写' }}</p>
     </ElDialog>
-  </div>
+  </main>
 </template>
 <script setup lang="ts">
+  import { computed, ref } from 'vue'
   import { ElMessage, ElMessageBox } from 'element-plus'
-  import {
-    aiState,
-    clone,
-    digitalConfig,
-    digitalDependencies,
-    digitalIssues,
-    publishDigital,
-    resolveScript,
-    scriptEvents,
-    type ConfigRow,
-    type Release
-  } from '../../shared/ai-store'
-  import { formatDateTime } from '@/utils/date'
-  import avatar1 from '@/assets/images/avatar/avatar1.webp'
-  import avatar2 from '@/assets/images/avatar/avatar2.webp'
-  import avatar3 from '@/assets/images/avatar/avatar3.webp'
-  defineOptions({ name: 'AiDigitalList' })
-  const avatars = [avatar1, avatar2, avatar3]
-  const listStatus = ref('active')
-  const keyword = ref(''),
-    editorVisible = ref(false),
-    releaseVisible = ref(false),
-    tab = ref('base'),
-    releaseTab = ref('check'),
-    testEvent = ref('answer'),
-    publishNote = ref('')
-  const form = reactive<Record<string, any>>({ scripts: {} }),
-    selected = ref<ConfigRow>(),
-    snapshot = ref<Release>()
-  let initialForm = ''
-  const filtered = computed(() =>
-    aiState.digital.filter(
-      (d) =>
-        Boolean(d.archived) === (listStatus.value === 'archived') &&
-        (d.name + d.role).includes(keyword.value.trim())
-    )
+  import { aiState, clone, scriptEvents } from '../../shared/ai-store'
+  import { sceneState, guideConfiguration, type Narration } from '../../shared/scene-store'
+
+  import GuidePublishing from '../../shared/GuidePublishing.vue'
+  import { resolveGuideRelease } from '../../shared/scene-store'
+
+  import GuideTable from './components/GuideTable.vue'
+  import GuideAvatarField from './components/GuideAvatarField.vue'
+  import defaultGuideAvatar from '@/assets/images/avatar/avatar1.webp'
+  import type { FormInstance, FormRules } from 'element-plus'
+  import MarkdownEditor from '../../knowledge/components/MarkdownEditor.vue'
+  const tab = ref('scenes'),
+    selected = ref('home')
+  const forms: Record<string, string> = {
+    full: '全身数字人',
+    half: '半身数字人',
+    sprite: '精灵形态'
+  }
+  const configurationOwner = ref(sceneState.identities[0]?.id || '')
+  const activeConfig = computed(() => guideConfiguration(configurationOwner.value))
+  const configurationName = computed(
+    () => sceneState.identities.find((p) => p.id === configurationOwner.value)?.name || '数字人'
   )
-  const selectedPrompt = computed(() => aiState.prompt.find((p) => p.id === form.promptId))
-  const modelName = (id: number) =>
-    aiState.models.find((m) => m.id === id)?.name || '未配置 / 已移除'
-  const knowledgeName = (id: number) =>
-    aiState.knowledge.find((k) => k.id === id)?.name || '已移除知识库'
-  const actionName = (v: string) =>
-    ({ none: '无', retry: '重试', recommend: '推荐问题', home: '返回首页' })[v] || '无'
-  function scriptOptions(event: string) {
-    return aiState.script.filter(
-      (s) =>
-        s.status === 'enabled' &&
-        s.event === event &&
-        (s.scope === 'global' || s.digitalId === form.id)
+  const settingsAdvanced = ref<string[]>([])
+  function openGuideConfiguration(id: string) {
+    tab.value = 'scenes'
+    settingsAdvanced.value = []
+    configurationOwner.value = id
+    settingsOpen.value = true
+  }
+  const current = computed(() => activeConfig.value.scenes.find((s) => s.id === selected.value)!)
+  const editingGuideId = ref(sceneState.identities[0]?.id || '')
+  const editingGuide = computed(
+    () => sceneState.identities.find((p) => p.id === editingGuideId.value)!
+  )
+  const settingsOpen = ref(false),
+    guideEditorOpen = ref(false),
+    guidePublishOpen = ref(false)
+  type Guide = (typeof sceneState.identities)[number]
+  const guideDraft = ref<Guide>({
+    id: '',
+    avatar: defaultGuideAvatar,
+    enabled: true,
+    name: '',
+    role: '',
+    voice: '',
+    rate: 1,
+    full: '',
+    half: '',
+    sprite: ''
+  })
+  let guideOriginal = ''
+  function latestGuideRelease(id: string) {
+    return sceneState.guideReleases.find((r) => r.guideId === id)
+  }
+  function guideStatus(id: string) {
+    if (!latestGuideRelease(id)) return 'draft'
+    const targets = sceneState.guideReleases
+      .filter((r) => r.guideId === id)
+      .flatMap((r) => r.schools.map((s) => s.id))
+    return ['', ...targets].some((school) => resolveGuideRelease(id, school))
+      ? 'published'
+      : 'withdrawn'
+  }
+  function guideScope(id: string) {
+    if (guideStatus(id) !== 'published') return '未开放'
+    const targeted = new Map(
+      sceneState.guideReleases
+        .filter((r) => r.guideId === id)
+        .flatMap((r) => r.schools.map((s) => [s.id, s.name] as const))
     )
+    const global = resolveGuideRelease(id, '')
+    const available = [...targeted].filter(([school]) => resolveGuideRelease(id, school))
+    const blocked = [...targeted].filter(([school]) => !resolveGuideRelease(id, school))
+    return global
+      ? `全部学校${targeted.size ? '（含学校专属配置）' : ''}${blocked.length ? `；${blocked.length} 所学校已撤回` : ''}`
+      : available.map(([, name]) => name).join('、')
   }
-  function currentRelease(row: ConfigRow) {
-    return row.releases?.find((r: Release) => r.version === row.publishedVersion) as
-      | Release
-      | undefined
-  }
-  function isDirty(row: ConfigRow) {
-    const r = currentRelease(row)
+  function hasDraftChanges(row: Guide) {
+    const last = latestGuideRelease(row.id)
     return (
-      !r ||
-      JSON.stringify(digitalConfig(row)) !== JSON.stringify(r.config) ||
-      JSON.stringify(digitalDependencies(row)) !== JSON.stringify(r.resolved)
+      !!last &&
+      (JSON.stringify(row) !== JSON.stringify(last.snapshot) ||
+        JSON.stringify(guideConfiguration(row.id)) !== JSON.stringify(last.configuration))
     )
   }
-  function edit(row?: ConfigRow) {
-    Object.keys(form).forEach((k) => delete form[k])
-    Object.assign(
-      form,
-      row
-        ? clone(row)
-        : {
-            name: '',
-            avatar: avatar1,
-            role: '博物馆讲解员',
-            description: '',
-            modelId: aiState.models.find(
-              (m) => m.purpose === 'chat' && m.isDefault && m.status === 'enabled'
-            )?.id,
-            knowledgeIds: [],
-            scripts: {},
-            ageGroup: '小学高年级',
-            answerLength: '适中',
-            status: 'disabled',
-            remark: ''
-          }
-    )
-    initialForm = JSON.stringify(form)
-    tab.value = 'base'
-    editorVisible.value = true
+  const guideRows = computed(() =>
+    sceneState.identities.map((p) => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      avatar: p.avatar || defaultGuideAvatar,
+      voice: p.voice,
+      scenes: guideConfiguration(p.id)
+        .scenes.map((s) => s.name)
+        .join('、'),
+      status: guideStatus(p.id),
+      scope: guideScope(p.id),
+      version: latestGuideRelease(p.id) ? 'V' + latestGuideRelease(p.id)!.version : '',
+      publishedAt: latestGuideRelease(p.id)?.at || '',
+      dirty: hasDraftChanges(p)
+    }))
+  )
+  function editGuideById(id: string) {
+    const row = sceneState.identities.find((p) => p.id === id)
+    if (row) editGuideRow(row)
   }
-  async function closeEditor(done: () => void) {
-    if (JSON.stringify(form) !== initialForm) {
+  const guideFormRef = ref<FormInstance>()
+  const guideFormRules: FormRules = {
+    name: [{ required: true, whitespace: true, message: '请输入数字人名称', trigger: 'blur' }],
+    role: [{ required: true, whitespace: true, message: '请输入角色设定', trigger: 'blur' }],
+    voice: [{ required: true, whitespace: true, message: '请输入音色', trigger: 'blur' }]
+  }
+  function editGuideRow(row: Guide) {
+    guideDraft.value = clone(row)
+    guideOriginal = JSON.stringify(guideDraft.value)
+    guideFormRef.value?.clearValidate()
+    guideEditorOpen.value = true
+  }
+  async function closeGuideEditor(done?: () => void) {
+    if (JSON.stringify(guideDraft.value) !== guideOriginal) {
       try {
-        await ElMessageBox.confirm('草稿尚未保存，确定放弃修改？', '未保存修改', {
-          type: 'warning'
-        })
+        await ElMessageBox.confirm('放弃未保存的数字人修改？', '未保存修改')
       } catch {
         return
       }
     }
-    done()
+    guideEditorOpen.value = false
+    if (typeof done === 'function') done()
   }
-  function saveDraft() {
-    if (!form.name?.trim()) return void ElMessage.warning('请输入数字人名称')
-    if (aiState.digital.some((d) => d.id !== form.id && d.name === form.name.trim()))
-      return void ElMessage.warning('数字人名称已存在')
-    const id = form.id || Math.max(0, ...aiState.digital.map((d) => d.id)) + 1
-    const old = aiState.digital.find((d) => d.id === id)
-    const saved = {
-      ...clone(form),
-      id,
-      name: form.name.trim(),
-      updatedAt: new Date().toISOString()
-    } as ConfigRow
-    if (old) Object.assign(old, saved)
-    else aiState.digital.unshift({ ...saved, releases: [], publishedVersion: 0 })
-    editorVisible.value = false
-    ElMessage.success('草稿已保存，已发布版本保持不变')
+  async function saveGuideDraft() {
+    if (!(await guideFormRef.value?.validate().catch(() => false))) return
+    const row = guideDraft.value
+    if (!row.name.trim() || !row.role.trim() || !row.voice.trim()) {
+      ElMessage.warning('请填写名称、角色设定和音色')
+      return
+    }
+    if (sceneState.identities.some((p) => p.id !== row.id && p.name.trim() === row.name.trim())) {
+      ElMessage.warning('数字人名称已存在')
+      return
+    }
+    row.name = row.name.trim()
+    const index = sceneState.identities.findIndex((p) => p.id === row.id)
+    if (index < 0) sceneState.identities.push(clone(row))
+    else sceneState.identities[index] = clone(row)
+    guideEditorOpen.value = false
+    ElMessage.success('草稿已保存，请通过“发布 / 版本”开放给学校')
   }
-  function openRelease(row: ConfigRow) {
-    selected.value = row
-    publishNote.value = ''
-    snapshot.value = undefined
-    releaseTab.value = 'check'
-    releaseVisible.value = true
+  function openGuidePublication(id: string) {
+    editingGuideId.value = id
+    guidePublishOpen.value = true
   }
-  const releaseDiff = computed(() => {
-    if (!selected.value) return []
-    const current = currentRelease(selected.value)
-    const before = current?.config || {},
-      after = selected.value
-    const published = current?.resolved || {},
-      pending = digitalDependencies(after)
-    const fields = [
-      ['name', '名称'],
-      ['role', '角色'],
-      ['description', '角色介绍'],
-      ['ageGroup', '年龄段'],
-      ['answerLength', '回答长度']
-    ] as const
-    return [
-      ...fields.map(([key, field]) => ({
-        field,
-        before: before[key] || '未配置',
-        after: after[key] || '未配置'
-      })),
-      {
-        field: '对话模型',
-        before: published.model?.name || '未配置',
-        after: pending.model?.name || '未配置'
-      },
-      {
-        field: '模型参数',
-        before: modelParameters(published.model),
-        after: modelParameters(pending.model)
-      },
-      {
-        field: '知识库',
-        before: published.knowledge?.map((k: any) => k.name).join('、') || '未配置',
-        after: pending.knowledge?.map((k: any) => k.name).join('、') || '未配置'
-      },
-      {
-        field: '提示词版本',
-        before: published.prompt ? `V${published.prompt.version}` : '未配置',
-        after: pending.prompt ? `V${pending.prompt.version}` : '未配置'
-      },
-      {
-        field: '提示词正文',
-        before: published.prompt?.config?.content || '未配置',
-        after: pending.prompt?.config?.content || '未配置'
-      },
-      ...scriptEvents.map((event) => ({
-        field: event.label,
-        before: published.scripts?.[event.key]?.content || '未配置',
-        after: pending.scripts?.[event.key]?.content || '未配置'
-      }))
-    ]
+  function deleteGuideRow(id: string) {
+    editingGuideId.value = id
+    return removeGuide()
+  }
+  function addGuide() {
+    const guide = {
+      id: crypto.randomUUID(),
+      avatar: defaultGuideAvatar,
+      enabled: true,
+      name: '新数字人',
+      role: '面向小学生的文化讲解员',
+      voice: '温暖自然',
+      rate: 1,
+      full: '',
+      half: '',
+      sprite: ''
+    }
+    guideDraft.value = guide
+    guideOriginal = JSON.stringify(guide)
+    guideFormRef.value?.clearValidate()
+    guideEditorOpen.value = true
+  }
+  async function removeGuide() {
+    if (
+      sceneState.guideReleases.some(
+        (r) =>
+          r.guideId === editingGuideId.value && !sceneState.withdrawnGuideReleases.includes(r.id)
+      )
+    ) {
+      ElMessage.warning('此数字人有已发布版本，请先撤回发布')
+      return
+    }
+
+    try {
+      await ElMessageBox.confirm('删除此数字人草稿？已发布快照仍保留。', '删除数字人')
+      delete sceneState.guideConfigurations[editingGuideId.value]
+      sceneState.identities = sceneState.identities.filter((p) => p.id !== editingGuideId.value)
+      editingGuideId.value = sceneState.identities[0]?.id || ''
+    } catch {
+      /* cancelled */
+    }
+  }
+  const editing = ref(false),
+    draft = ref(clone(current.value))
+  let original = ''
+  const promptVersions = computed(
+    () => aiState.prompt.find((p) => p.id === draft.value.promptId)?.releases || []
+  )
+  function editScene() {
+    draft.value = clone(current.value)
+    original = JSON.stringify(draft.value)
+    editing.value = true
+  }
+  async function closeEditor(done?: () => void) {
+    if (JSON.stringify(draft.value) !== original) {
+      try {
+        await ElMessageBox.confirm('放弃尚未保存的修改？', '未保存修改')
+      } catch {
+        return
+      }
+    }
+    editing.value = false
+    if (typeof done === 'function') done()
+  }
+  function changePrompt() {
+    draft.value.promptVersion =
+      aiState.prompt.find((p) => p.id === draft.value.promptId)?.publishedVersion || 0
+  }
+  function saveScene() {
+    Object.assign(current.value, clone(draft.value))
+    editing.value = false
+    ElMessage.success('场景草稿已保存')
+  }
+  const blank = (): Narration => ({
+    id: crypto.randomUUID(),
+    kind: '文物',
+    name: '',
+    knowledgeId: 1,
+    facts: '',
+    source: '',
+    templateId: 'artifact',
+    text: '',
+    questions: '',
+    reviewed: false
   })
-  function modelParameters(model: any) {
-    return model?.model
-      ? `${model.model} · 最大输出 ${model.maxTokens} · 超时 ${model.timeout}s · Temperature ${model.temperature}`
-      : '未配置'
+  const contentOpen = ref(false),
+    content = ref(blank())
+  const contentPreviewOpen = ref(false)
+  let contentOriginal = ''
+  function previewContent(row: Narration) {
+    content.value = clone(row)
+    contentPreviewOpen.value = true
   }
-  function publish() {
-    if (!selected.value) return
-    try {
-      const r = publishDigital(selected.value, publishNote.value)
-      ElMessage.success(`已在本地发布 V${r.version}`)
-      releaseTab.value = 'history'
-    } catch (e) {
-      ElMessage.error((e as Error).message)
+  async function closeContent(done?: () => void) {
+    if (JSON.stringify(content.value) !== contentOriginal) {
+      try {
+        await ElMessageBox.confirm('放弃尚未保存的讲解修改？', '未保存修改')
+      } catch {
+        return
+      }
     }
+    contentOpen.value = false
+    if (typeof done === 'function') done()
   }
-  async function restore(release: Release) {
-    if (!selected.value) return
+  function editContent(row?: Narration) {
+    content.value = row ? clone(row) : blank()
+    contentOriginal = JSON.stringify(content.value)
+    contentOpen.value = true
+  }
+  function saveContent() {
+    const n = content.value
+    if (!n.name.trim() || (n.reviewed && (!n.facts.trim() || !n.source.trim() || !n.text.trim()))) {
+      ElMessage.warning('请填写名称；确认资料需要事实、出处和讲解稿')
+      return
+    }
+    n.templateId = n.kind === '文物' ? 'artifact' : 'theme'
+    const i = activeConfig.value.narrations.findIndex((r) => r.id === n.id)
+    if (i < 0) activeConfig.value.narrations.push(clone(n))
+    else activeConfig.value.narrations[i] = clone(n)
+    contentOpen.value = false
+  }
+  async function removeContent(id: string) {
     try {
-      await ElMessageBox.confirm(
-        `使用 V${release.version} 覆盖当前草稿？已发布版本不会改变。`,
-        '恢复草稿'
-      )
-      Object.assign(selected.value, clone(release.config), { updatedAt: new Date().toISOString() })
-      ElMessage.success('已恢复为草稿，可检查后重新发布')
-      releaseTab.value = 'check'
+      await ElMessageBox.confirm('删除讲解草稿？已发布快照保留。', '删除讲解')
+      activeConfig.value.narrations = activeConfig.value.narrations.filter((n) => n.id !== id)
     } catch {
-      /* 用户取消 */
+      /* cancelled */
     }
   }
-  async function archive(row: ConfigRow) {
+  function addSource() {
+    activeConfig.value.sources.push({ id: crypto.randomUUID(), name: '', url: '', enabled: false })
+  }
+  function validateSource(s: { enabled: boolean; name: string; url: string }) {
+    if (s.enabled) return true
     try {
-      await ElMessageBox.confirm(
-        '归档会停用该数字人，保留草稿和发布记录，可从已归档列表恢复。',
-        '归档数字人'
-      )
-      row.archived = true
-      row.status = 'disabled'
-      ElMessage.success('数字人已归档')
+      if (new URL(s.url).protocol !== 'https:' || !s.name.trim()) throw new Error()
+      return true
     } catch {
-      /* 用户取消 */
+      ElMessage.warning('请输入名称和有效的 HTTPS 地址')
+      return false
     }
   }
-  async function remove(row: ConfigRow) {
-    if (row.publishedVersion) return void ElMessage.warning('有发布历史的数字人请停用保留记录')
-    if (aiState.script.some((s) => s.scope === 'digital' && s.digitalId === row.id))
-      return void ElMessage.warning('请先调整该数字人的专属话术')
-    try {
-      await ElMessageBox.confirm(`删除未发布数字人“${row.name}”？`, '删除数字人')
-      aiState.digital = aiState.digital.filter((d) => d.id !== row.id)
-    } catch {
-      /* 用户取消 */
+  function removeSource(id: string) {
+    if (activeConfig.value.scenes.some((s) => s.sourceIds.includes(id))) {
+      ElMessage.warning('请先解除场景引用')
+      return
     }
+    activeConfig.value.sources = activeConfig.value.sources.filter((s) => s.id !== id)
   }
 </script>
-<style scoped>
-  :global(.digital-config-dialog) {
-    display: flex;
-    flex-direction: column;
-    max-height: 92vh;
+<style scoped lang="scss">
+  .simple-settings {
+    max-width: 820px;
+    margin-top: 24px;
   }
 
-  :global(.digital-config-dialog .el-dialog__body) {
-    min-height: 0;
-    overflow: auto;
+  .setting-field {
+    width: 100%;
   }
 
-  :global(.digital-config-dialog .el-dialog__header),
-  :global(.digital-config-dialog .el-dialog__footer) {
-    flex-shrink: 0;
-  }
-
-  .digital-toolbar,
-  .identity,
-  .avatar-options {
-    display: flex;
-    gap: 14px;
-    align-items: center;
-  }
-
-  .digital-toolbar {
-    justify-content: space-between;
-    margin: 18px 0;
-  }
-
-  .identity small,
-  small {
-    display: block;
-    margin-top: 5px;
+  .setting-field small,
+  .field-hint {
+    margin-left: 12px;
     color: var(--el-text-color-secondary);
   }
 
-  .hint {
-    width: 100%;
-    margin: 6px 0;
+  .setting-field small {
+    display: block;
+    margin: 6px 0 0;
+  }
+
+  .workbench {
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+
+  h2,
+  h3,
+  h4 {
+    margin: 0 0 10px;
+  }
+
+  p {
     line-height: 1.7;
     color: var(--el-text-color-secondary);
   }
 
-  .script-choice {
-    width: 100%;
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0;
   }
 
-  .test-output {
-    padding: 18px;
-    margin-top: 16px;
-    line-height: 1.8;
-    white-space: pre-wrap;
+  .scene {
+    padding: 22px;
+    color: var(--el-text-color-primary);
+    text-align: left;
+    cursor: pointer;
+    background: var(--el-bg-color);
     border: 1px solid var(--el-border-color);
+    border-radius: 12px;
+    transition:
+      border-color 0.18s,
+      background-color 0.18s;
+  }
+
+  .scene.active {
+    background: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary);
+  }
+
+  .scene small {
+    display: block;
+    margin-bottom: 12px;
+    color: var(--el-color-primary);
+  }
+
+  section {
+    padding: 16px;
+    background: var(--el-fill-color-light);
     border-radius: 8px;
   }
 
-  :deep(.el-tabs) {
-    margin-top: 16px;
+  .issue {
+    color: var(--el-color-danger);
+  }
+
+  pre {
+    max-height: 65vh;
+    overflow: auto;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
   }
 
   :deep(.el-select) {
     width: 100%;
   }
 
-  :global(.el-dialog .digital-toolbar) {
-    margin-top: 0;
+  @media (width <= 900px) {
+    .cards {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+<style lang="scss">
+  .management-dialog {
+    display: flex;
+    flex-direction: column;
+    height: min(800px, 88dvh);
+    margin: 0 auto;
+  }
+
+  .management-dialog > .el-dialog__body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .narration-dialog {
+    display: flex;
+    flex-direction: column;
+    height: min(900px, 92dvh);
+  }
+
+  .narration-dialog .el-dialog__body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .narration-dialog .el-dialog__header,
+  .narration-dialog .el-dialog__footer {
+    flex-shrink: 0;
   }
 </style>

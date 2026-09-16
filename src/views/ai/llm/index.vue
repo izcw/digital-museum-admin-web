@@ -31,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+  import '../shared/scene-store'
   import { ElMessage, ElMessageBox, ElTag, ElButton } from 'element-plus'
   import { aiState, references } from '../shared/ai-store'
   import { useTableColumns } from '@/hooks/core/useTableColumns'

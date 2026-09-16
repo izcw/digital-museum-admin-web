@@ -70,6 +70,11 @@ export async function fetchUpdateRoleMenus(roleId: number, menuIds: number[]) {
 export async function fetchGetMenuList() {
   const { data } = await apiServerRequest.get<AppRouteRecord[]>('/menus/navigation')
   const ai = data.find((item) => item.path === '/ai')
+  const digital = ai?.children?.find((item) =>
+    item.children?.some((child) => child.component === '/ai/digital/list')
+  )
+  const workbench = digital?.children?.find((item) => item.component === '/ai/digital/list')
+  if (workbench?.meta) workbench.meta.title = '数字人列表'
   const knowledge = ai?.children?.find((item) => item.name === 'AiKnowledge')
   if (knowledge?.children && !knowledge.children.some((item) => item.name === 'AiKnowledgeTag')) {
     knowledge.children.push({

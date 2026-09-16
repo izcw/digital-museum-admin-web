@@ -308,6 +308,10 @@ for (const row of seeds.digital)
     changeNote: ''
   })
 export type KnowledgeResource = {
+  source?: string
+  relatedObject?: string
+  allowDisplay?: boolean
+  allowDownload?: boolean
   id: number
   name: string
   type: string
@@ -629,8 +633,9 @@ export function publishDigital(row: ConfigRow, note: string): Release {
   row.updatedAt = release.at
   return release
 }
+export const referenceProviders: ((kind: string, id: number) => string[])[] = []
 export function references(kind: string, id: number): string[] {
-  const refs: string[] = []
+  const refs: string[] = referenceProviders.flatMap((provider) => provider(kind, id))
   for (const digital of aiState.digital) {
     const configs = [
       digital,
