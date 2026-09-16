@@ -255,7 +255,7 @@
               : '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem v-if="currentDetailTask?.scheduledAt" label="计划执行">{{
-            currentDetailTask.scheduledAt
+            formatDateTime(currentDetailTask.scheduledAt)
           }}</ElDescriptionsItem>
         </ElDescriptions>
 
@@ -386,7 +386,7 @@
 
   const statusConfig: Record<VersionStatus, { label: string; type: TagProps['type'] }> = {
     draft: { label: '草稿', type: 'info' },
-    scheduled: { label: '待发布', type: 'warning' },
+    scheduled: { label: '定时发布', type: 'warning' },
     releasing: { label: '发布中', type: 'warning' },
     paused: { label: '已暂停', type: 'warning' },
     published: { label: '已发布', type: 'success' },
@@ -629,9 +629,18 @@
     {
       prop: 'status',
       label: '发布状态',
-      width: 100,
-      formatter: (row) =>
-        h(ElTag, { type: statusConfig[row.status].type }, () => statusConfig[row.status].label)
+      minWidth: 210,
+      formatter: (row) => {
+        const scheduledAt = getLatestTask(row.id)?.scheduledAt
+        return h('div', { class: 'file-cell' }, [
+          h('div', {}, [
+            h(ElTag, { type: statusConfig[row.status].type }, () => statusConfig[row.status].label)
+          ]),
+          row.status === 'scheduled'
+            ? h('small', {}, `发布时间：${formatDateTime(scheduledAt, '待确认')}`)
+            : null
+        ])
+      }
     },
     {
       prop: 'progress',
