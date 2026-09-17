@@ -185,12 +185,57 @@
           </ElRadioGroup>
         </ElFormItem>
         <ElFormItem v-if="publishForm.scheduleMode === 'scheduled'" label="执行时间" required>
-          <ElDatePicker
-            v-model="publishForm.scheduledAt"
-            type="datetime"
-            placeholder="选择下发时间"
-            class="w-full"
-          />
+          <div class="schedule-field">
+            <div class="schedule-inputs">
+              <ElDatePicker
+                v-model="publishForm.scheduledDate"
+                type="date"
+                format="YYYY-MM-DD"
+                placeholder="选择日期"
+                :editable="false"
+                :disabled-date="disabledScheduleDate"
+                @change="handleScheduledDateChange"
+              />
+              <div class="schedule-time-parts">
+                <div class="schedule-time-part">
+                  <ElSelect
+                    v-model="publishForm.scheduledHour"
+                    placeholder="小时"
+                    :disabled="!publishForm.scheduledDate"
+                    @change="handleScheduledHourChange"
+                  >
+                    <ElOption
+                      v-for="hour in scheduleHours"
+                      :key="hour"
+                      :label="padTimePart(hour)"
+                      :value="hour"
+                      :disabled="isScheduleHourDisabled(hour)"
+                    />
+                  </ElSelect>
+                  <span>时</span>
+                </div>
+                <div class="schedule-time-part">
+                  <ElSelect
+                    v-model="publishForm.scheduledMinute"
+                    placeholder="分钟"
+                    :disabled="
+                      !publishForm.scheduledDate || publishForm.scheduledHour === undefined
+                    "
+                  >
+                    <ElOption
+                      v-for="minute in scheduleMinutes"
+                      :key="minute"
+                      :label="padTimePart(minute)"
+                      :value="minute"
+                      :disabled="isScheduleMinuteDisabled(minute)"
+                    />
+                  </ElSelect>
+                  <span>分</span>
+                </div>
+              </div>
+            </div>
+            <span class="field-help">仅可选择未来时间，分钟以 5 分钟为间隔</span>
+          </div>
         </ElFormItem>
         <ElFormItem label="强制更新">
           <ElSwitch v-model="publishForm.mandatory" />
@@ -441,9 +486,89 @@
     schoolIds: [0] as number[],
     rolloutPercentage: 100,
     scheduleMode: 'immediate' as 'immediate' | 'scheduled',
-    scheduledAt: undefined as Date | undefined,
+    scheduledDate: undefined as Date | undefined,
+    scheduledHour: undefined as number | undefined,
+    scheduledMinute: undefined as number | undefined,
     mandatory: false
   })
+  const scheduleHours = Array.from({ length: 24 }, (_, hour) => hour)
+  const scheduleMinutes = Array.from({ length: 12 }, (_, index) => index * 5)
+  const padTimePart = (value: number) => String(value).padStart(2, '0')
+
+  const isSameLocalDay = (left: Date, right: Date) =>
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+
+  function disabledScheduleDate(date: Date) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return date.getTime() < today.getTime()
+  }
+
+  const getEarliestScheduledAt = () => {
+    const now = new Date()
+    now.setSeconds(0, 0)
+    now.setMinutes(Math.floor(now.getMinutes() / 5) * 5 + 5)
+    return now
+  }
+
+  function isScheduleHourDisabled(hour: number) {
+    if (!publishForm.scheduledDate || !isSameLocalDay(publishForm.scheduledDate, new Date()))
+      return false
+    const earliest = getEarliestScheduledAt()
+    return !isSameLocalDay(publishForm.scheduledDate, earliest) || hour < earliest.getHours()
+  }
+
+  function isScheduleMinuteDisabled(minute: number) {
+    if (
+      !publishForm.scheduledDate ||
+      publishForm.scheduledHour === undefined ||
+      !isSameLocalDay(publishForm.scheduledDate, new Date())
+    )
+      return false
+    const earliest = getEarliestScheduledAt()
+    if (!isSameLocalDay(publishForm.scheduledDate, earliest)) return true
+    if (publishForm.scheduledHour < earliest.getHours()) return true
+    return publishForm.scheduledHour === earliest.getHours() && minute < earliest.getMinutes()
+  }
+
+  function getScheduledAt() {
+    if (
+      !publishForm.scheduledDate ||
+      publishForm.scheduledHour === undefined ||
+      publishForm.scheduledMinute === undefined
+    )
+      return undefined
+    const scheduledAt = new Date(publishForm.scheduledDate)
+    scheduledAt.setHours(publishForm.scheduledHour, publishForm.scheduledMinute, 0, 0)
+    return scheduledAt
+  }
+
+  function handleScheduledDateChange(value: Date | null) {
+    publishForm.scheduledDate = value ?? undefined
+    if (
+      publishForm.scheduledHour !== undefined &&
+      isScheduleHourDisabled(publishForm.scheduledHour)
+    ) {
+      publishForm.scheduledHour = undefined
+      publishForm.scheduledMinute = undefined
+    } else if (
+      publishForm.scheduledMinute !== undefined &&
+      isScheduleMinuteDisabled(publishForm.scheduledMinute)
+    ) {
+      publishForm.scheduledMinute = undefined
+    }
+  }
+
+  function handleScheduledHourChange() {
+    if (
+      publishForm.scheduledMinute !== undefined &&
+      isScheduleMinuteDisabled(publishForm.scheduledMinute)
+    )
+      publishForm.scheduledMinute = undefined
+  }
+
   const formRules: FormRules = {
     version: [
       { required: true, message: '请输入版本号', trigger: 'blur' },
@@ -899,7 +1024,9 @@
       schoolIds: [0],
       rolloutPercentage: 100,
       scheduleMode: 'immediate',
-      scheduledAt: undefined,
+      scheduledDate: undefined,
+      scheduledHour: undefined,
+      scheduledMinute: undefined,
       mandatory: false
     })
     previousSchoolIds = [0]
@@ -911,10 +1038,13 @@
     if (publishing.value || targetsLoading.value || targetsFailed.value || !currentRecord.value)
       return
     if (!publishForm.schoolIds.length) return void ElMessage.warning('请选择关联学校或全部')
+    const scheduledAt = getScheduledAt()
     if (publishForm.scheduleMode === 'scheduled') {
-      if (!publishForm.scheduledAt) return void ElMessage.warning('请选择定时下发时间')
-      if (publishForm.scheduledAt.getTime() <= Date.now())
+      if (!scheduledAt) return void ElMessage.warning('请选择完整的定时下发日期和时间')
+      if (scheduledAt.getTime() <= Date.now())
         return void ElMessage.warning('定时下发时间必须晚于当前时间')
+      if (scheduledAt.getMinutes() % 5 !== 0)
+        return void ElMessage.warning('定时下发时间须按 5 分钟间隔选择，秒数固定为 00')
     }
     publishing.value = true
     try {
@@ -924,9 +1054,7 @@
         rolloutPercentage: publishForm.rolloutPercentage,
         mandatory: publishForm.mandatory,
         scheduledAt:
-          publishForm.scheduleMode === 'scheduled'
-            ? publishForm.scheduledAt?.toISOString()
-            : undefined
+          publishForm.scheduleMode === 'scheduled' ? scheduledAt?.toISOString() : undefined
       })
       publishDialogVisible.value = false
       activeStatusTab.value = publishForm.scheduleMode === 'scheduled' ? 'unpublished' : 'published'
@@ -1229,6 +1357,44 @@
     width: 42px;
     font-weight: 600;
     text-align: right;
+  }
+
+  .schedule-field {
+    width: 100%;
+  }
+
+  .schedule-inputs {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .schedule-inputs :deep(.el-date-editor),
+  .schedule-time-parts,
+  .schedule-time-part :deep(.el-select) {
+    width: 100%;
+  }
+
+  .schedule-time-parts,
+  .schedule-time-part {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .schedule-time-part {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .schedule-time-part > span {
+    flex: none;
+    color: var(--art-text-gray-600);
+  }
+
+  .schedule-field .field-help {
+    display: block;
+    margin: 6px 0 0;
   }
 
   .field-help {
