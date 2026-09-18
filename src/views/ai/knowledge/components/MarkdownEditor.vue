@@ -7,9 +7,11 @@
   const emit = defineEmits<{ (e: 'update:modelValue', value: string): void }>()
   const root = ref<HTMLElement>()
   let editor: Crepe | undefined
-  onMounted(async () => {
+
+  async function createEditor(defaultValue: string) {
     if (!root.value) return
-    editor = new Crepe({ root: root.value, defaultValue: props.modelValue })
+    const instance = new Crepe({ root: root.value, defaultValue })
+    editor = instance
     editor.setReadonly(Boolean(props.readonly))
     editor.on((listener) =>
       listener.markdownUpdated((_ctx, value) => {
@@ -17,7 +19,28 @@
       })
     )
     await editor.create()
+  }
+
+  onMounted(async () => {
+    await createEditor(props.modelValue)
   })
+
+  watch(
+    () => props.modelValue,
+    async (value) => {
+      if (!editor || editor.getMarkdown() === value) return
+      const previous = editor
+      editor = undefined
+      await previous.destroy()
+      await createEditor(value)
+    }
+  )
+
+  watch(
+    () => props.readonly,
+    (value) => editor?.setReadonly(Boolean(value))
+  )
+
   onBeforeUnmount(() => {
     void editor?.destroy()
   })

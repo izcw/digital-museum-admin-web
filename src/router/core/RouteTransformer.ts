@@ -73,6 +73,28 @@ export class RouteTransformer {
             )
           )
         }
+        // 新增/编辑藏品使用独立页面，并沿用藏品管理菜单的访问权限。
+        if (child.name === 'Collect') {
+          routes.push(
+            this.transform(
+              {
+                ...child,
+                path: `${child.path}/editor/:id?`,
+                name: 'CollectEditor',
+                component: '/content/collect/editor',
+                children: undefined,
+                meta: {
+                  ...child.meta,
+                  title: '藏品资料',
+                  isHide: true,
+                  keepAlive: false,
+                  activePath: child.path
+                }
+              },
+              depth + 1
+            )
+          )
+        }
         return routes
       })
     }

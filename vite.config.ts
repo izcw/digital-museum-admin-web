@@ -43,6 +43,7 @@ export default ({ mode }: { mode: string }) => {
         '/devices': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
         '/schools': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
         '/school-admins': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
+        '/collections': { target: VITE_AUTH_API_PROXY_URL, changeOrigin: true },
         '/api': {
           target: VITE_API_PROXY_URL,
           changeOrigin: true
