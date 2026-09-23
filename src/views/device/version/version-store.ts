@@ -34,7 +34,6 @@ export interface ReleaseTask {
   targetGroupIds: number[]
   targetGroups: string[]
   rolloutPercentage: number
-  mandatory: boolean
   scheduledAt?: string
   createdBy: string
   createdAt: string
@@ -57,6 +56,7 @@ export interface VersionRecord {
   updatedAt: string
   publishedAt?: string
   downloadUrl: string
+  targetGroups: string[]
   latestTask?: ReleaseTask
   releaseTasks?: ReleaseTask[]
 }
@@ -71,7 +71,6 @@ export interface CreateReleaseTaskInput {
   allSchools: boolean
   schoolIds: number[]
   rolloutPercentage: number
-  mandatory: boolean
   scheduledAt?: string
 }
 

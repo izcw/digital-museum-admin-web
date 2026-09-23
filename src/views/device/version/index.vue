@@ -237,10 +237,6 @@
             <span class="field-help">仅可选择未来时间，分钟以 5 分钟为间隔</span>
           </div>
         </ElFormItem>
-        <ElFormItem label="强制更新">
-          <ElSwitch v-model="publishForm.mandatory" />
-          <span class="field-help">客户端下载完成后弹出确认框，确认后重启安装</span>
-        </ElFormItem>
       </ElForm>
       <ElAlert
         :title="
@@ -295,9 +291,7 @@
             currentDetailTask?.targetGroups.join('、') || '尚未设置'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem label="更新策略">{{
-            currentDetailTask
-              ? `${currentDetailTask.rolloutPercentage}% 灰度${currentDetailTask.mandatory ? ' · 强制更新' : ''}`
-              : '-'
+            currentDetailTask ? `${currentDetailTask.rolloutPercentage}% 灰度` : '-'
           }}</ElDescriptionsItem>
           <ElDescriptionsItem v-if="currentDetailTask?.scheduledAt" label="计划执行">{{
             formatDateTime(currentDetailTask.scheduledAt)
@@ -488,8 +482,7 @@
     scheduleMode: 'immediate' as 'immediate' | 'scheduled',
     scheduledDate: undefined as Date | undefined,
     scheduledHour: undefined as number | undefined,
-    scheduledMinute: undefined as number | undefined,
-    mandatory: false
+    scheduledMinute: undefined as number | undefined
   })
   const scheduleHours = Array.from({ length: 24 }, (_, hour) => hour)
   const scheduleMinutes = Array.from({ length: 12 }, (_, index) => index * 5)
@@ -627,11 +620,10 @@
         .filter((item) => item.publishedAt && item.status !== 'archived')
         .sort((a, b) => compareVersions(b.version, a.version))[0]
   )
-  const pendingDevices = computed(() =>
-    releaseTasks.value
-      .filter((task) => ['scheduled', 'releasing', 'paused'].includes(task.status))
-      .reduce((total, task) => total + taskPendingCount(task), 0)
-  )
+  const pendingDevices = computed(() => {
+    const task = latestSoftware.value ? getLatestTask(latestSoftware.value.id) : undefined
+    return task ? taskPendingCount(task) : 0
+  })
   const completedTotal = computed(() =>
     releaseTasks.value.reduce((total, task) => total + taskInstalledCount(task), 0)
   )
@@ -750,6 +742,13 @@
       label: '更新说明',
       minWidth: 260,
       showOverflowTooltip: true
+    },
+    {
+      prop: 'targetGroups',
+      label: '关联学校',
+      minWidth: 180,
+      showOverflowTooltip: true,
+      formatter: (row) => row.targetGroups?.join('、') || '-'
     },
     {
       prop: 'status',
@@ -1026,8 +1025,7 @@
       scheduleMode: 'immediate',
       scheduledDate: undefined,
       scheduledHour: undefined,
-      scheduledMinute: undefined,
-      mandatory: false
+      scheduledMinute: undefined
     })
     previousSchoolIds = [0]
     void loadPublishTargets()
@@ -1052,7 +1050,6 @@
         allSchools: publishForm.schoolIds.includes(0),
         schoolIds: publishForm.schoolIds.filter((id) => id !== 0),
         rolloutPercentage: publishForm.rolloutPercentage,
-        mandatory: publishForm.mandatory,
         scheduledAt:
           publishForm.scheduleMode === 'scheduled' ? scheduledAt?.toISOString() : undefined
       })
