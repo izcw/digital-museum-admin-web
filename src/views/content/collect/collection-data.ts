@@ -18,6 +18,9 @@ export interface CollectionItem {
   cover: string
   gallery: string[]
   galleryPaths?: string[]
+  printable?: boolean
+  gcodeName?: string
+  gcodeUrl?: string
   hasModel: boolean
   modelName: string
   modelUrl?: string

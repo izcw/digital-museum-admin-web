@@ -21,7 +21,7 @@
 
     <ElCard class="editor-content-card" shadow="never">
       <ElAlert
-        title="资料、图集顺序和 3D 模型将保存到服务端；发布后客户端才能加载该藏品。"
+        title="资料、图集顺序、3D 模型和打印文件将保存到服务端；发布后客户端才能加载该藏品。"
         type="success"
         :closable="false"
         show-icon
@@ -247,6 +247,50 @@
             />
           </div>
         </ElTabPane>
+        <ElTabPane name="gcode">
+          <template #label>
+            <span class="tab-label"
+              ><ArtSvgIcon icon="ri:printer-line" />3D 打印
+              <span v-if="editorGcodeName" class="status-dot"></span>
+            </span>
+          </template>
+          <div class="asset-panel model-panel">
+            <div v-if="editorGcodeName" class="model-file-card">
+              <div class="model-file-icon"><ArtSvgIcon icon="ri:printer-line" /></div>
+              <div class="model-file-info">
+                <strong>{{ editorGcodeName }}</strong>
+                <span>G-code 打印文件 · 保存后显示可打印</span>
+              </div>
+              <ElButton type="danger" plain @click="removeGcode">移除文件</ElButton>
+            </div>
+            <ElUpload
+              drag
+              accept=".gcode"
+              :auto-upload="false"
+              :show-file-list="false"
+              :disabled="saving"
+              :on-change="handleGcodeChange"
+            >
+              <ArtSvgIcon icon="ri:printer-line" class="model-upload-icon" />
+              <div class="el-upload__text"
+                >将 G-code 文件拖到此处，或
+                <em>{{ editorGcodeName ? '替换文件' : '点击选择' }}</em></div
+              >
+              <template #tip
+                ><div class="el-upload__tip"
+                  >仅支持 .gcode 格式，文件大小不超过 500MB。</div
+                ></template
+              >
+            </ElUpload>
+            <ElAlert
+              title="上传并保存打印文件后，藏品卡片和详情将显示“可打印”；移除并保存后取消标识。"
+              type="info"
+              :closable="false"
+              show-icon
+              class="model-tip"
+            />
+          </div>
+        </ElTabPane>
       </ElTabs>
     </ElCard>
   </div>
@@ -260,6 +304,8 @@
     appendCollectionGallery,
     createCollection,
     deleteCollectionModel,
+    deleteCollectionGcode,
+    replaceCollectionGcode,
     fetchCollection,
     reorderCollectionGallery,
     replaceCollectionModel,
@@ -284,9 +330,12 @@
   const editingItem = ref<CollectionItem>()
   const isEditing = computed(() => Boolean(routeId.value))
   const originalTitle = computed(() => editingItem.value?.title || '未知藏品')
-  const editorTab = ref<'text' | 'gallery' | 'model'>('text')
+  const editorTab = ref<'text' | 'gallery' | 'model' | 'gcode'>('text')
   const editorGallery = ref<string[]>([])
   const galleryDragging = ref(false)
+  const editorGcodeName = ref('')
+  const gcodeFile = ref<File>()
+  const gcodeRemoved = ref(false)
   const editorModelName = ref('')
   const loading = ref(false)
   const saving = ref(false)
@@ -331,6 +380,9 @@
     item?.gallery.forEach((url, index) =>
       galleryPathByUrl.set(url, item?.galleryPaths?.[index] || url)
     )
+    editorGcodeName.value = item?.gcodeName || ''
+    gcodeFile.value = undefined
+    gcodeRemoved.value = false
     editorModelName.value = item?.modelName || ''
     modelFile.value = undefined
     modelRemoved.value = false
@@ -356,6 +408,7 @@
   }
 
   async function saveDraft() {
+    if (saving.value) return
     if (!draft.title.trim()) {
       editorTab.value = 'text'
       ElMessage.warning('请填写藏品名称')
@@ -389,6 +442,10 @@
       if (modelFile.value) saved = await replaceCollectionModel(saved.id, modelFile.value)
       else if (modelRemoved.value && editingItem.value?.hasModel)
         saved = await deleteCollectionModel(saved.id)
+
+      if (gcodeFile.value) saved = await replaceCollectionGcode(saved.id, gcodeFile.value)
+      else if (gcodeRemoved.value && editingItem.value?.printable)
+        saved = await deleteCollectionGcode(saved.id)
 
       const index = collections.value.findIndex((item) => item.id === saved.id)
       if (index >= 0) collections.value.splice(index, 1, saved)
@@ -438,6 +495,27 @@
     editorModelName.value = fileName
     modelFile.value = file.raw
     modelRemoved.value = false
+  }
+
+  function handleGcodeChange(file: UploadFile) {
+    if (!file.raw) return
+    if (!file.raw.name.toLowerCase().endsWith('.gcode')) {
+      ElMessage.warning('请选择 .gcode 格式的打印文件')
+      return
+    }
+    if (!file.raw.size || file.raw.size > 500 * 1024 * 1024) {
+      ElMessage.warning('打印文件不能为空，且不能超过 500MB')
+      return
+    }
+    editorGcodeName.value = file.raw.name
+    gcodeFile.value = file.raw
+    gcodeRemoved.value = false
+  }
+
+  function removeGcode() {
+    editorGcodeName.value = ''
+    gcodeFile.value = undefined
+    gcodeRemoved.value = true
   }
 
   function removeModel() {

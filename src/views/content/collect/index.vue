@@ -136,6 +136,8 @@
           </p>
           <div class="card-footer"
             ><span>{{ item.material }}</span
+            ><ElTag v-if="item.printable" type="success" size="small"
+              ><ArtSvgIcon icon="ri:printer-line" />可打印</ElTag
             ><span>{{ item.level }}</span></div
           >
         </div>
@@ -176,6 +178,30 @@
             >
           </div>
           <ElEmpty v-else description="该藏品暂未配置 3D 模型" :image-size="64" />
+        </section>
+
+        <section class="detail-block">
+          <div class="detail-title"
+            ><h3>3D 打印</h3
+            ><ElTag :type="activeCollection.printable ? 'success' : 'info'">{{
+              activeCollection.printable ? '可打印' : '未配置打印文件'
+            }}</ElTag></div
+          >
+          <div v-if="activeCollection.printable" class="model-preview">
+            <ArtSvgIcon icon="ri:printer-line" />
+            <div
+              ><strong>{{ activeCollection.gcodeName }}</strong
+              ><p>G-code 打印文件</p></div
+            >
+            <ElLink
+              v-if="activeCollection.gcodeUrl"
+              :href="activeCollection.gcodeUrl"
+              target="_blank"
+              type="primary"
+              >下载打印文件</ElLink
+            >
+          </div>
+          <ElEmpty v-else description="上传 G-code 文件后，该藏品将显示可打印" :image-size="64" />
         </section>
 
         <section class="detail-block">

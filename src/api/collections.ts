@@ -36,6 +36,7 @@ function normalizeCollection(item: CollectionItem): CollectionItem {
     description,
     cover: absoluteAssetUrl(item.cover),
     gallery: item.gallery.map(absoluteAssetUrl),
+    gcodeUrl: absoluteAssetUrl(item.gcodeUrl || ''),
     modelUrl: absoluteAssetUrl(item.modelUrl || '')
   }
 }
@@ -114,6 +115,24 @@ export async function replaceCollectionModel(id: string, file: File) {
 export async function deleteCollectionModel(id: string) {
   const { data } = await apiServerRequest.delete<CollectionItem>(
     `/collections/${encodeURIComponent(id)}/model`
+  )
+  return normalizeCollection(data)
+}
+
+export async function replaceCollectionGcode(id: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  const { data } = await apiServerRequest.put<CollectionItem>(
+    `/collections/${encodeURIComponent(id)}/gcode`,
+    form,
+    { timeout: 120_000 }
+  )
+  return normalizeCollection(data)
+}
+
+export async function deleteCollectionGcode(id: string) {
+  const { data } = await apiServerRequest.delete<CollectionItem>(
+    `/collections/${encodeURIComponent(id)}/gcode`
   )
   return normalizeCollection(data)
 }
