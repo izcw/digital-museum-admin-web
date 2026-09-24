@@ -108,7 +108,7 @@
                   {{
                     editingRecord
                       ? '选择新文件后，保存修改将替换当前安装包；不选择则保留原安装包'
-                      : '支持 Windows NSIS .exe，最大 500 MB'
+                      : '只需上传一个 EXE 安装包，系统自动校验并提取升级程序，最大 500 MB'
                   }}
                 </div>
               </template>
@@ -127,7 +127,7 @@
         </ElFormItem>
       </ElForm>
       <ElAlert
-        title="保存后生成草稿，不会立即下发；云服务会计算 SHA-512，正式环境还应校验安装包数字签名。"
+        title="只上传一个 EXE。系统将校验内置清单、提取升级程序并计算 SHA-512；成功后生成草稿，不会立即下发。"
         type="info"
         :closable="false"
         show-icon
@@ -135,7 +135,7 @@
       <template #footer>
         <ElButton @click="createDialogVisible = false">取消</ElButton>
         <ElButton type="primary" :loading="savingDraft" @click="submitDraft">
-          {{ editingRecord ? '保存修改' : '保存草稿' }}
+          {{ savingDraft ? '正在上传并校验…' : editingRecord ? '保存修改' : '保存草稿' }}
         </ElButton>
       </template>
     </ElDialog>
@@ -962,7 +962,7 @@
     const file = uploadFile.raw
     if (!file) return
     if (!file.name.toLowerCase().endsWith('.exe')) {
-      ElMessage.warning('请选择 .exe 文件')
+      ElMessage.warning('请选择当前打包流程生成的 EXE 软件安装包')
       uploadFiles.value = []
       Object.assign(form, { fileName: '', fileSize: 0 })
       return
