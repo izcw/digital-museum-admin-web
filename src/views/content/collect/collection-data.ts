@@ -25,6 +25,9 @@ export interface CollectionItem {
   modelName: string
   modelUrl?: string
   published: boolean
+  treasured?: boolean
+  sortOrder?: number
+  revision?: string
   createdAt?: string
   updatedAt?: string
 }

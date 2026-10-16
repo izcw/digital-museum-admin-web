@@ -66,83 +66,147 @@
             <ElOption label="包含 3D" value="3d" />
             <ElOption label="仅图片" value="image" />
           </ElSelect>
+          <ElSelect
+            v-model="sortMode"
+            aria-label="藏品排序"
+            :disabled="sorting || collectionDragging"
+          >
+            <ElOption label="自定义排序" value="custom" />
+            <ElOption label="更新排序" value="updated" />
+            <ElOption label="上传排序" value="created" />
+          </ElSelect>
         </div>
       </div>
     </ElCard>
 
     <div class="result-meta">
       <span>共 {{ filteredCollections.length }} 件藏品</span>
-      <ElButton text @click="loadCollections"><ArtSvgIcon icon="ri:refresh-line" />刷新</ElButton>
+      <small>{{
+        sortMode === 'custom'
+          ? '拖动卡片右下角的拖拽柄保存顺序；藏宝优先'
+          : '仅调整后台查看顺序，不改变客户端排序；切回自定义排序后可拖拽'
+      }}</small>
+      <ElButton text :disabled="sorting || collectionDragging" @click="loadCollections"
+        ><ArtSvgIcon icon="ri:refresh-line" />刷新</ElButton
+      >
     </div>
 
-    <div v-if="filteredCollections.length" class="collection-grid">
-      <ElCard
-        v-for="item in filteredCollections"
-        :key="item.id"
-        class="collection-card"
-        shadow="hover"
-        @contextmenu.prevent="showContextMenu($event, item)"
-      >
-        <div
-          class="cover-wrap"
-          role="button"
-          tabindex="0"
-          :aria-label="`查看${item.title}详情`"
-          @click="openDetail(item)"
-          @keydown.enter="openDetail(item)"
-          @keydown.space.prevent="openDetail(item)"
+    <VueDraggable
+      v-if="filteredCollections.length"
+      v-model="displayCollections"
+      target=".collection-grid"
+      :class="{ 'is-sorting': collectionDragging }"
+      :disabled="sortMode !== 'custom' || sorting || loading"
+      handle=".collection-drag-handle"
+      ghost-class="collection-drag-placeholder"
+      chosen-class="collection-drag-chosen"
+      drag-class="collection-dragging"
+      fallback-class="collection-drag-fallback"
+      :force-fallback="true"
+      :fallback-on-body="true"
+      :fallback-tolerance="4"
+      :animation="220"
+      easing="cubic-bezier(0.22, 1, 0.36, 1)"
+      :swap-threshold="0.55"
+      :invert-swap="true"
+      :inverted-swap-threshold="0.72"
+      :scroll="true"
+      :scroll-sensitivity="80"
+      :scroll-speed="10"
+      :bubble-scroll="true"
+      :on-move="canMoveCollection"
+      @start="startCollectionDrag"
+      @end="endCollectionDrag"
+      @unchoose="endCollectionDrag"
+    >
+      <TransitionGroup name="collection-order" tag="div" class="collection-grid">
+        <ElCard
+          v-for="item in displayCollections"
+          :key="item.id"
+          class="collection-card"
+          :data-collection-id="item.id"
+          shadow="hover"
+          @contextmenu.prevent="showContextMenu($event, item)"
         >
-          <ElImage :src="item.cover" fit="contain" class="collection-cover" lazy>
-            <template #error
-              ><div class="image-state"><ArtSvgIcon icon="ri:image-line" /></div
-            ></template>
-          </ElImage>
-          <span class="category-badge">{{ item.category }}</span>
-          <span v-if="item.hasModel" class="model-badge" title="包含 3D 模型">
-            <ArtSvgIcon icon="ri:box-3-line" />
-          </span>
-        </div>
-        <div class="card-content">
-          <div class="title-row">
-            <h3 :title="item.title">{{ item.title }}</h3>
-            <ElDropdown
-              trigger="click"
-              @command="(command: string) => handleCommand(command, item)"
-              @click.stop
-            >
-              <ElButton text circle aria-label="藏品操作"
-                ><ArtSvgIcon icon="ri:more-2-fill"
-              /></ElButton>
-              <template #dropdown>
-                <ElDropdownMenu>
-                  <ElDropdownItem command="detail">查看详情</ElDropdownItem>
-                  <ElDropdownItem command="edit">编辑资料</ElDropdownItem>
-                  <ElDropdownItem :command="item.published ? 'unpublish' : 'publish'">
-                    {{ item.published ? '取消发布' : '发布藏品' }}
-                  </ElDropdownItem>
-                  <ElDropdownItem divided command="delete"
-                    ><span class="danger-action">删除</span></ElDropdownItem
-                  >
-                </ElDropdownMenu>
-              </template>
-            </ElDropdown>
-          </div>
-          <div class="metadata">
-            <span><ArtSvgIcon icon="ri:time-line" />{{ item.period || '年代未填写' }}</span>
-            <span><ArtSvgIcon icon="ri:government-line" />{{ item.museum || '单位未填写' }}</span>
-          </div>
-          <p class="description" :title="plainDescription(item.description)">
-            {{ plainDescription(item.description) }}
-          </p>
-          <div class="card-footer"
-            ><span>{{ item.material }}</span
-            ><ElTag v-if="item.printable" type="success" size="small"
-              ><ArtSvgIcon icon="ri:printer-line" />可打印</ElTag
-            ><span>{{ item.level }}</span></div
+          <div
+            class="cover-wrap"
+            role="button"
+            tabindex="0"
+            :aria-label="`查看${item.title}详情`"
+            @click="openDetail(item)"
+            @keydown.enter="openDetail(item)"
+            @keydown.space.prevent="openDetail(item)"
           >
-        </div>
-      </ElCard>
-    </div>
+            <ElImage :src="item.cover" fit="contain" class="collection-cover" lazy>
+              <template #error
+                ><div class="image-state"><ArtSvgIcon icon="ri:image-line" /></div
+              ></template>
+            </ElImage>
+            <span class="category-badge">{{ item.category }}</span>
+            <ElTag
+              v-if="item.treasured"
+              style="position: absolute; bottom: 12px; left: 12px"
+              type="warning"
+              >藏宝 · 自动下载</ElTag
+            >
+            <span v-if="item.hasModel" class="model-badge" title="包含 3D 模型">
+              <ArtSvgIcon icon="ri:box-3-line" />
+            </span>
+          </div>
+          <div class="card-content">
+            <div class="title-row">
+              <h3 :title="item.title">{{ item.title }}</h3>
+              <ElDropdown
+                trigger="click"
+                @command="(command: string) => handleCommand(command, item)"
+                @click.stop
+              >
+                <ElButton text circle aria-label="藏品操作"
+                  ><ArtSvgIcon icon="ri:more-2-fill"
+                /></ElButton>
+                <template #dropdown>
+                  <ElDropdownMenu>
+                    <ElDropdownItem command="detail">查看详情</ElDropdownItem>
+                    <ElDropdownItem command="edit">编辑资料</ElDropdownItem>
+                    <ElDropdownItem :command="item.published ? 'unpublish' : 'publish'">
+                      {{ item.published ? '下架藏品' : '发布藏品' }}
+                    </ElDropdownItem>
+                    <ElDropdownItem command="treasure">{{
+                      item.treasured ? '取消藏宝' : '设为藏宝'
+                    }}</ElDropdownItem>
+                    <ElDropdownItem divided command="delete"
+                      ><span class="danger-action">删除</span></ElDropdownItem
+                    >
+                  </ElDropdownMenu>
+                </template>
+              </ElDropdown>
+            </div>
+            <div class="metadata">
+              <span><ArtSvgIcon icon="ri:time-line" />{{ item.period || '年代未填写' }}</span>
+              <span><ArtSvgIcon icon="ri:government-line" />{{ item.museum || '单位未填写' }}</span>
+            </div>
+            <p class="description" :title="plainDescription(item.description)">
+              {{ plainDescription(item.description) }}
+            </p>
+            <div class="card-footer"
+              ><span>{{ item.material }}</span
+              ><ElTag v-if="item.printable" type="success" size="small"
+                ><ArtSvgIcon icon="ri:printer-line" />可打印</ElTag
+              ><span>{{ item.level }}</span>
+              <button
+                class="collection-drag-handle"
+                type="button"
+                :disabled="sortMode !== 'custom' || sorting"
+                :aria-label="`拖拽调整${item.title}顺序`"
+                :title="sortMode === 'custom' ? '拖拽调整顺序' : '切换到自定义排序后可拖拽'"
+                @click.stop
+                ><ArtSvgIcon icon="ri:drag-move-2-line"
+              /></button>
+            </div>
+          </div>
+        </ElCard>
+      </TransitionGroup>
+    </VueDraggable>
     <ElEmpty v-else-if="!loading" description="没有找到符合条件的藏品">
       <ElButton v-if="collections.length" type="primary" @click="resetFilters">清除筛选</ElButton>
       <ElButton v-else type="primary" @click="importVisible = true">导入第一件藏品</ElButton>
@@ -333,6 +397,8 @@
 </template>
 
 <script setup lang="ts">
+  import { VueDraggable } from 'vue-draggable-plus'
+  import { mergeCollectionOrder } from './collection-order'
   import { ElMessage, ElMessageBox, type UploadFile } from 'element-plus'
   import ArtMenuRight, {
     type MenuItemType
@@ -341,7 +407,8 @@
     deleteCollectionRequest,
     fetchCollections,
     importCollectionPackage,
-    updateCollection
+    updateCollection,
+    reorderCollections
   } from '@/api/collections'
   import { categories, collections, periodOptions, type CollectionItem } from './collection-data'
   import {
@@ -354,6 +421,47 @@
   const route = useRoute()
   const router = useRouter()
   const loading = ref(false)
+  const sortMode = ref<'custom' | 'updated' | 'created'>('custom')
+  const collectionDragging = ref(false)
+  const sorting = ref(false)
+  function startCollectionDrag() {
+    collectionDragging.value = true
+    document.body.classList.add('collection-list-dragging')
+  }
+  function endCollectionDrag() {
+    collectionDragging.value = false
+    document.body.classList.remove('collection-list-dragging')
+  }
+  function canMoveCollection(event: { dragged: HTMLElement; related: HTMLElement }) {
+    const from = collections.value.find((item) => item.id === event.dragged.dataset.collectionId)
+    const to = collections.value.find((item) => item.id === event.related.dataset.collectionId)
+    // 藏宝固定优先；分组内可排序，不让跨分组拖拽保存后又跳回。
+    return !from || !to || Boolean(from.treasured) === Boolean(to.treasured)
+  }
+  async function saveCollectionOrder(next: CollectionItem[]) {
+    if (sorting.value || sortMode.value !== 'custom') return
+    const previous = [...collections.value]
+    let ordered: CollectionItem[]
+    try {
+      ordered = mergeCollectionOrder(previous, filteredCollections.value, next)
+    } catch {
+      ElMessage.warning('列表已变化，请刷新后重新排序')
+      return
+    }
+    const ids = ordered.map((item) => item.id)
+    if (ids.every((id, index) => id === previous[index].id)) return
+    collections.value = ordered
+    sorting.value = true
+    try {
+      collections.value = await reorderCollections(ids)
+      ElMessage.success('排序已保存')
+    } catch (error) {
+      collections.value = previous
+      ElMessage.error(error instanceof Error ? error.message : '排序保存失败')
+    } finally {
+      sorting.value = false
+    }
+  }
   const loaded = ref(false)
   const activeCategory = ref<(typeof categories)[number]>('全部')
   const publishStatusTab = ref<'published' | 'unpublished'>('published')
@@ -386,25 +494,39 @@
   ])
   const filteredCollections = computed(() => {
     const query = keyword.value.trim().toLowerCase()
-    return collections.value.filter((item) => {
-      const haystack = [
-        item.id,
-        item.title,
-        item.period,
-        item.museum,
-        item.material,
-        item.description
-      ]
-      return (
-        item.published === (publishStatusTab.value === 'published') &&
-        (activeCategory.value === '全部' || item.category === activeCategory.value) &&
-        (!periodFilter.value || item.period === periodFilter.value) &&
-        (!museumFilter.value || item.museum === museumFilter.value) &&
-        (modelFilter.value === 'all' ||
-          (modelFilter.value === '3d' ? item.hasModel : !item.hasModel)) &&
-        (!query || haystack.some((value) => value.toLowerCase().includes(query)))
+    return collections.value
+      .filter((item) => {
+        const haystack = [
+          item.id,
+          item.title,
+          item.period,
+          item.museum,
+          item.material,
+          item.description
+        ]
+        return (
+          item.published === (publishStatusTab.value === 'published') &&
+          (activeCategory.value === '全部' || item.category === activeCategory.value) &&
+          (!periodFilter.value || item.period === periodFilter.value) &&
+          (!museumFilter.value || item.museum === museumFilter.value) &&
+          (modelFilter.value === 'all' ||
+            (modelFilter.value === '3d' ? item.hasModel : !item.hasModel)) &&
+          (!query || haystack.some((value) => value.toLowerCase().includes(query)))
+        )
+      })
+      .sort((a, b) =>
+        sortMode.value === 'custom'
+          ? 0
+          : String(sortMode.value === 'updated' ? b.updatedAt : b.createdAt).localeCompare(
+              String(sortMode.value === 'updated' ? a.updatedAt : a.createdAt)
+            )
       )
-    })
+  })
+  const displayCollections = computed({
+    get: () => filteredCollections.value,
+    set: (next: CollectionItem[]) => {
+      void saveCollectionOrder(next)
+    }
   })
 
   const collectionMenuItems = computed<MenuItemType[]>(() => {
@@ -414,9 +536,10 @@
       { key: 'edit', label: '编辑资料', icon: 'ri:edit-line' },
       {
         key: item?.published ? 'unpublish' : 'publish',
-        label: item?.published ? '取消发布' : '发布藏品',
+        label: item?.published ? '下架藏品' : '发布藏品',
         icon: 'ri:send-plane-line'
       },
+      { key: 'treasure', label: item?.treasured ? '取消藏宝' : '设为藏宝', icon: 'ri:star-line' },
       { key: 'delete', label: '删除藏品', icon: 'ri:delete-bin-line', showLine: true }
     ]
   })
@@ -468,8 +591,8 @@
     if (!published) {
       try {
         await ElMessageBox.confirm(
-          `取消发布后，客户端将不再加载“${item.title}”。确定继续吗？`,
-          '取消发布',
+          `下架后，客户端即使已下载也不能展示“${item.title}”。确定继续吗？`,
+          '下架藏品',
           { type: 'warning' }
         )
       } catch {
@@ -478,8 +601,9 @@
     }
     const updated = await updateCollection(item.id, { published })
     Object.assign(item, updated)
+    await loadCollections()
     publishStatusTab.value = published ? 'published' : 'unpublished'
-    ElMessage.success(published ? '藏品已发布' : '已取消发布')
+    ElMessage.success(published ? '藏品已发布' : '藏品已下架')
   }
 
   async function removeCollection(item: CollectionItem) {
@@ -497,6 +621,10 @@
   }
 
   function handleCommand(command: string, item: CollectionItem) {
+    if (command === 'treasure')
+      void updateCollection(item.id, { treasured: !item.treasured })
+        .then(loadCollections)
+        .catch((error) => ElMessage.error(error.message))
     if (command === 'detail') openDetail(item)
     if (command === 'edit') openEditor(item)
     if (command === 'publish') void setPublished(item, true)
@@ -630,6 +758,8 @@
     if (loaded.value) void loadCollections()
   })
   onBeforeUnmount(() => document.body.classList.remove('collection-image-preview'))
+  onBeforeUnmount(endCollectionDrag)
+  onDeactivated(endCollectionDrag)
 </script>
 
 <style scoped lang="scss">
@@ -718,9 +848,9 @@
 
   .filters {
     display: grid;
-    grid-template-columns: minmax(210px, 1.5fr) repeat(3, minmax(130px, 1fr));
+    grid-template-columns: minmax(210px, 1.5fr) repeat(4, minmax(130px, 1fr));
     gap: 10px;
-    width: min(760px, 58vw);
+    width: min(980px, 64vw);
   }
 
   .result-meta {
@@ -740,6 +870,99 @@
 
     :deep(.el-card__body) {
       padding: 0;
+    }
+  }
+
+  .collection-drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    font-size: 18px;
+    color: var(--art-text-gray-600);
+    touch-action: none;
+    cursor: grab;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+
+    &:hover:not(:disabled) {
+      color: var(--main-color);
+      background: var(--el-color-primary-light-9);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.35;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--main-color);
+      outline-offset: 2px;
+    }
+  }
+
+  .collection-drag-placeholder {
+    position: relative;
+    background: var(--el-color-primary-light-9);
+    outline: 2px dashed var(--main-color);
+    outline-offset: -2px;
+    box-shadow: none;
+    opacity: 1;
+    animation: collection-placeholder-pulse 1.1s ease-in-out infinite;
+
+    :deep(.el-card__body) {
+      visibility: hidden;
+    }
+
+    &::after {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+      color: var(--main-color);
+      content: '释放到此处';
+    }
+  }
+
+  .collection-drag-chosen {
+    box-shadow: 0 10px 26px rgb(0 0 0 / 14%);
+  }
+
+  .collection-dragging {
+    cursor: grabbing;
+    opacity: 0.88;
+  }
+
+  :global(.collection-drag-fallback) {
+    z-index: 9999 !important;
+    pointer-events: none !important;
+    box-shadow: 0 16px 34px rgb(0 0 0 / 20%);
+    opacity: 0.94 !important;
+    // ElCard 默认过渡所有属性，不能让鼠标位移也产生 0.3s 的追赶延迟。
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .collection-order-move {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  :global(body.collection-list-dragging) {
+    cursor: grabbing !important;
+    user-select: none;
+  }
+
+  @keyframes collection-placeholder-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(64 158 255 / 0%);
+    }
+
+    50% {
+      box-shadow: 0 0 0 5px rgb(64 158 255 / 15%);
     }
   }
 

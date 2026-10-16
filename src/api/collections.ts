@@ -15,6 +15,7 @@ export type CollectionMutation = Pick<
 > & {
   weight?: string
   provenance?: string
+  treasured?: boolean
 }
 
 function apiOrigin() {
@@ -43,6 +44,11 @@ function normalizeCollection(item: CollectionItem): CollectionItem {
 
 export async function fetchCollections() {
   const { data } = await apiServerRequest.get<CollectionItem[]>('/collections')
+  return data.map(normalizeCollection)
+}
+
+export async function reorderCollections(ids: string[]) {
+  const { data } = await apiServerRequest.patch<CollectionItem[]>('/collections/order', { ids })
   return data.map(normalizeCollection)
 }
 

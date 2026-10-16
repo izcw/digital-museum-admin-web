@@ -55,6 +55,11 @@
                   <ElInput v-model="draft.title" placeholder="请输入藏品名称" />
                 </ElFormItem>
               </ElCol>
+              <ElCol :span="24">
+                <ElFormItem label="藏宝（客户端自动下载并优先展示）">
+                  <ElSwitch v-model="draft.treasured" />
+                </ElFormItem>
+              </ElCol>
               <ElCol :xs="24" :sm="12">
                 <ElFormItem label="分类" required>
                   <ElSelect v-model="draft.category" class="w-full">
@@ -353,7 +358,8 @@
     museum: '',
     dimensions: '',
     description: '',
-    published: false
+    published: false,
+    treasured: false
   })
 
   async function loadDraft() {
@@ -395,7 +401,8 @@
       museum: item?.museum || '',
       dimensions: item?.dimensions || '',
       description: item?.description || '',
-      published: item?.published || false
+      published: item?.published || false,
+      treasured: item?.treasured || false
     })
     if (route.query.imported === '1') ElMessage.success('资源包已导入，请核对并完善藏品资料')
   }
